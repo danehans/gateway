@@ -72,7 +72,7 @@ func TestTranslate(t *testing.T) {
 
 			got := translator.Translate(resources)
 
-			sort.Slice(got.IR.HTTP, func(i, j int) bool { return got.IR.HTTP[i].Name < got.IR.HTTP[j].Name })
+			sort.Slice(got.xdsIR.HTTP, func(i, j int) bool { return got.xdsIR.HTTP[i].Name < got.xdsIR.HTTP[j].Name })
 
 			assert.EqualValues(t, want, got)
 		})

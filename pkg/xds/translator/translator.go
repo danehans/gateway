@@ -12,7 +12,7 @@ import (
 	"github.com/envoyproxy/gateway/pkg/ir"
 )
 
-// TranslateXdsIR translates the XDS IR into xDS resources
+// TranslateXdsIR translates the XDS xdsIR into xDS resources
 func TranslateXdsIR(ir *ir.Xds) (*Context, error) {
 	if ir == nil {
 		return nil, errors.New("ir is nil")
@@ -21,13 +21,13 @@ func TranslateXdsIR(ir *ir.Xds) (*Context, error) {
 	tCtx := new(Context)
 
 	for _, httpListener := range ir.HTTP {
-		// 1:1 between IR HTTPListener and xDS Listener
+		// 1:1 between xdsIR HTTPListener and xDS Listener
 		xdsListener, err := buildXdsListener(httpListener)
 		if err != nil {
 			return nil, multierror.Append(err, errors.New("error building xds listener"))
 		}
 
-		// 1:1 between IR TLSListenerConfig and xDS Secret
+		// 1:1 between xdsIR TLSListenerConfig and xDS Secret
 		if httpListener.TLS != nil {
 			// Build downstream TLS context.
 			tSocket, err := buildXdsDownstreamTLSSocket(httpListener.Name, httpListener.TLS)
@@ -44,7 +44,7 @@ func TranslateXdsIR(ir *ir.Xds) (*Context, error) {
 		}
 
 		// Allocate virtual host for this httpListener.
-		// 1:1 between IR HTTPListener and xDS VirtualHost
+		// 1:1 between xdsIR HTTPListener and xDS VirtualHost
 		routeName := getXdsRouteName(httpListener.Name)
 		vHost := &route.VirtualHost{
 			Name:    routeName,
@@ -52,14 +52,14 @@ func TranslateXdsIR(ir *ir.Xds) (*Context, error) {
 		}
 
 		for _, httpRoute := range httpListener.Routes {
-			// 1:1 between IR HTTPRoute and xDS config.route.v3.Route
+			// 1:1 between xdsIR HTTPRoute and xDS config.route.v3.Route
 			xdsRoute, err := buildXdsRoute(httpRoute)
 			if err != nil {
 				return nil, multierror.Append(err, errors.New("error building xds route"))
 			}
 			vHost.Routes = append(vHost.Routes, xdsRoute)
 
-			// 1:1 between IR HTTPRoute and xDS Cluster
+			// 1:1 between xdsIR HTTPRoute and xDS Cluster
 			xdsCluster, err := buildXdsCluster(httpRoute)
 			if err != nil {
 				return nil, multierror.Append(err, errors.New("error building xds cluster"))

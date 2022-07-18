@@ -8,21 +8,24 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"sigs.k8s.io/gateway-api/apis/v1beta1"
+
+	cfgv1a1 "github.com/envoyproxy/gateway/api/config/v1alpha1"
 )
 
 const (
 	KindGateway   = "Gateway"
 	KindHTTPRoute = "HTTPRoute"
 	KindService   = "Service"
+	EnvoyProxy    = "EnvoyProxy"
 )
 
-// Resources holds the Gateway API and related
-// resources that the translators needs as inputs.
+// Resources defines external resources that are used as translation input.
 type Resources struct {
 	Gateways   []*v1beta1.Gateway
 	HTTPRoutes []*v1beta1.HTTPRoute
 	Namespaces []*v1.Namespace
 	Services   []*v1.Service
+	EnvoyProxy *cfgv1a1.EnvoyProxy
 }
 
 func (r *Resources) GetNamespace(name string) *v1.Namespace {
@@ -45,21 +48,33 @@ func (r *Resources) GetService(namespace, name string) *v1.Service {
 	return nil
 }
 
-// Translator translates Gateway API resources to the IR,
-// and computes status for Gateway API resources.
+func (r *Resources) GetEnvoyProxy(namespace, name string) *cfgv1a1.EnvoyProxy {
+	if r.EnvoyProxy == nil {
+		return nil
+	}
+	if r.EnvoyProxy.Namespace == namespace && r.EnvoyProxy.Name == name {
+		return r.EnvoyProxy
+	}
+
+	return nil
+}
+
+// Translator translates Gateway API resources to the IR.
 type Translator struct {
 	gatewayClassName v1beta1.ObjectName
 }
 
 type TranslateResult struct {
-	Gateways   []*v1beta1.Gateway
-	HTTPRoutes []*v1beta1.HTTPRoute
-	IR         *ir.Xds
+	Gateways     []*v1beta1.Gateway
+	HTTPRoutes   []*v1beta1.HTTPRoute
+	EnvoyGateway *cfgv1a1.EnvoyGateway
+	xdsIR        *ir.Xds
+	infraIR      *ir.InfraContext
 }
 
 func newTranslateResult(gateways []*GatewayContext, httpRoutes []*HTTPRouteContext, xdsIR *ir.Xds) *TranslateResult {
 	translateResult := &TranslateResult{
-		IR: xdsIR,
+		xdsIR: xdsIR,
 	}
 
 	for _, gateway := range gateways {
@@ -178,7 +193,7 @@ func (t *Translator) ProcessListeners(gateways []*GatewayContext, xdsIR *ir.Xds)
 
 	// Iterate through all listeners to validate spec
 	// and compute status for each, and add valid ones
-	// to the IR.
+	// to the xdsIR.
 	for _, gateway := range gateways {
 		for _, listener := range gateway.listeners {
 			// Process protocol & supported kinds
@@ -343,7 +358,7 @@ func (t *Translator) ProcessHTTPRoutes(httpRoutes []*v1beta1.HTTPRoute, gateways
 
 				// A rule is matched if any one of its matches
 				// is satisfied (i.e. a logical "OR"), so generate
-				// a unique IR HTTPRoute per match.
+				// a unique xdsIR HTTPRoute per match.
 				for matchIdx, match := range rule.Matches {
 					irRoute := &ir.HTTPRoute{
 						Name: routeName(httpRoute, ruleIdx, matchIdx),

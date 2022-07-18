@@ -105,7 +105,7 @@ The Infra Manager consumes the Infra IR as input to manage the data plane infras
   `gatewayclass.spec.parametersRef` refers to a custom resource for configuring the managed proxy infrastructure. If
   unspecified, default configuration parameters are used for the managed proxy infrastructure.
 * Envoy Gateway will manage [Gateways][gw] that reference its GatewayClass.
-  * The first Gateway causes Envoy Gateway to provision the managed Envoy proxy infrastructure.
+  * The first valid Gateway causes Envoy Gateway to provision the managed Envoy proxy infrastructure.
   * Envoy Gateway will merge multiple Gateways that match its GatewayClass and will follow Gateway API
     [guidelines][gwapi_conflicts] to resolve any conflicts.
   * A Gateway `listener` corresponds to a proxy [Listener][listener].

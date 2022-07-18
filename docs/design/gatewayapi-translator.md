@@ -6,7 +6,7 @@
 ## Inputs and Outputs
 
 The main inputs to the Gateway API translator are:
-- the GatewayClass to process
+- the GatewayClass to process and optionally, the referenced EnvoyProxy CRD.
 - Gateways, HTTPRoutes, Services, Secrets
 
 The outputs of the Gateway API translator are:
@@ -184,13 +184,17 @@ The following roughly outlines the translation process.
 Each step may produce (1) IR; and (2) status updates on Gateway API resources.
 
 ```
-1. Process Gateway Listeners
+1. Process Gateways
+    - validate Gateway resource and CRUD the InfraContext IR accordinly.
+    - Optionally, validate EnvoyProxy CRD and CRUD the ProxyContext IR accordinly.
+
+2. Process Gateway Listeners
     - validate unique hostnames/ports/protcols
     - validate/compute supported kinds
     - validate allowed namespaces (validate selector if specified)
     - validate TLS details if specified, resolve secret ref
 
-2. Process HTTPRoutes
+3. Process HTTPRoutes
     - foreach route rule:
         - compute matches
             - [core] path exact, path prefix

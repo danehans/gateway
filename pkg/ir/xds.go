@@ -1,7 +1,7 @@
 package ir
 
 // Xds holds the intermediate representation of a Gateway and is
-// used by the xDS Translator to convert it into xDS resources.
+// used by the Translator to convert it into xDS resources.
 type Xds struct {
 	// Name of the Xds IR.
 	Name string
