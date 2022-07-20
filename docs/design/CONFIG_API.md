@@ -254,7 +254,7 @@ type EnvoyProxy struct {
 // EnvoyProxySpec defines the desired state of Envoy Proxy infrastructure
 // configuration.
 type EnvoyProxySpec struct {
-	// Undefined by this design spec.
+
 }
 
 // EnvoyProxyStatus defines the observed state of EnvoyProxy.
@@ -288,8 +288,9 @@ spec:
     port: 80
 ```
 Since the GatewayClass does not define `spec.parametersRef`, the data plane is provisioned using default configuration
-parameters. All Envoy proxies will be configured with a http listener and a Kubernetes LoadBalancer service listening
-on port 80.
+parameters. All Envoy proxies will:
+- Be provisioned using the Kubernetes [Infra Manager](SYSTEM_DESIGN.md)
+- Be configured with a http listener and a Kubernetes LoadBalancer service listening on port 80.
 
 The following example will configure the data plane to use a ClusterIP service instead of the default LoadBalancer
 service:
@@ -321,10 +322,14 @@ kind: EnvoyProxy
 metadata:
   name: example-config
 spec:
-  networkPublishing:
-    type: ClusterIPService
+  provider:
+    type: Kubernetes
+    kubernetes:
+      service:
+        type: ClusterIP
 ```
-__Note:__ The NetworkPublishing API is currently undefined and is provided here for illustration purposes only.
+
+The EnvoyProxy resource is used to manage the proxy infrastructure. The `typ`
 
 [issue_51]: https://github.com/envoyproxy/gateway/issues/51
 [design_doc]: https://github.com/envoyproxy/gateway/blob/main/docs/design/SYSTEM_DESIGN.md

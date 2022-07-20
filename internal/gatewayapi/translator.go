@@ -69,7 +69,7 @@ type TranslateResult struct {
 	HTTPRoutes   []*v1beta1.HTTPRoute
 	EnvoyGateway *cfgv1a1.EnvoyGateway
 	xdsIR        *ir.Xds
-	infraIR      *ir.InfraContext
+	infraIR      *ir.Infra
 }
 
 func newTranslateResult(gateways []*GatewayContext, httpRoutes []*HTTPRouteContext, xdsIR *ir.Xds) *TranslateResult {

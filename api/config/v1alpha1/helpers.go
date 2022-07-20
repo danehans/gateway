@@ -43,9 +43,9 @@ func DefaultGateway() *Gateway {
 	}
 }
 
-// DefaultProvider returns a new Provider with default configuration parameters.
-func DefaultProvider() *Provider {
-	return &Provider{
+// DefaultProvider returns a new EnvoyGatewayProvider with default configuration parameters.
+func DefaultProvider() *EnvoyGatewayProvider {
+	return &EnvoyGatewayProvider{
 		Type: ProviderTypeKubernetes,
 	}
 }

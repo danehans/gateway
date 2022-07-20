@@ -21,23 +21,23 @@ type EnvoyGateway struct {
 	EnvoyGatewaySpec `json:",inline"`
 }
 
-// EnvoyGatewaySpec defines the desired state of Envoy Gateway.
+// EnvoyGatewaySpec defines the desired state of EnvoyGateway.
 type EnvoyGatewaySpec struct {
-	// Gateway defines desired Gateway API specific configuration. If unset,
+	// Gateway defines the desired Gateway API configuration. If unset,
 	// default configuration parameters will apply.
 	//
 	// +optional
 	Gateway *Gateway `json:"gateway,omitempty"`
 
-	// Provider defines the desired provider and provider-specific configuration.
-	// If unspecified, the Kubernetes provider is used with default configuration
-	// parameters.
+	// Provider defines the desired provider and provider-specific configuration
+	// of EnvoyGateway. If unspecified, the Kubernetes provider is used with default
+	// configuration parameters.
 	//
 	// +optional
-	Provider *Provider `json:"provider,omitempty"`
+	Provider *EnvoyGatewayProvider `json:"provider,omitempty"`
 }
 
-// Gateway defines the desired Gateway API configuration of Envoy Gateway.
+// Gateway defines the desired Gateway API configuration.
 type Gateway struct {
 	// ControllerName defines the name of the Gateway API controller. If unspecified,
 	// defaults to "gateway.envoyproxy.io/gatewayclass-controller". See the following
@@ -49,44 +49,34 @@ type Gateway struct {
 	ControllerName string `json:"controllerName,omitempty"`
 }
 
-// Provider defines the desired configuration of a provider.
+// EnvoyGatewayProvider defines the desired configuration of the EnvoyGateway provider.
 // +union
-type Provider struct {
+type EnvoyGatewayProvider struct {
 	// Type is the type of provider to use.
 	//
 	// +unionDiscriminator
 	Type ProviderType `json:"type"`
-	// Kubernetes defines the configuration of the Kubernetes provider. Kubernetes
+	// Kubernetes defines the configuration of the EnvoyGateway Kubernetes provider. Kubernetes
 	// provides runtime configuration via the Kubernetes API.
 	//
 	// +optional
-	Kubernetes *KubernetesProvider `json:"kubernetes,omitempty"`
+	Kubernetes *EnvoyGatewayKubeProvider `json:"kubernetes,omitempty"`
 
-	// File defines the configuration of the File provider. File provides runtime
+	// File defines the configuration of the EnvoyGateway File provider. File provides runtime
 	// configuration defined by one or more files.
 	//
 	// +optional
-	File *FileProvider `json:"file,omitempty"`
+	File *EnvoyGatewayFileProvider `json:"file,omitempty"`
 }
 
-// ProviderType defines the types of providers supported by Envoy Gateway.
-type ProviderType string
-
-const (
-	// ProviderTypeKubernetes defines the "Kubernetes" provider.
-	ProviderTypeKubernetes ProviderType = "Kubernetes"
-
-	// ProviderTypeFile defines the "File" provider.
-	ProviderTypeFile ProviderType = "File"
-)
-
-// KubernetesProvider defines configuration for the Kubernetes provider.
-type KubernetesProvider struct {
+// EnvoyGatewayKubeProvider defines the desired configuration for the EnvoyGateway
+// Kubernetes provider.
+type EnvoyGatewayKubeProvider struct {
 	// TODO: Add config as use cases are better understood.
 }
 
-// FileProvider defines configuration for the File provider.
-type FileProvider struct {
+// EnvoyGatewayFileProvider defines configuration for the EnvoyGateway File provider.
+type EnvoyGatewayFileProvider struct {
 	// TODO: Add config as use cases are better understood.
 }
 
