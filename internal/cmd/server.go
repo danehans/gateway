@@ -3,10 +3,11 @@ package cmd
 import (
 	"os"
 
-	"github.com/envoyproxy/gateway/api/config/v1alpha1"
-	"github.com/envoyproxy/gateway/internal/envoygateway/config"
 	"github.com/spf13/cobra"
 
+	"github.com/envoyproxy/gateway/api/config/v1alpha1"
+	"github.com/envoyproxy/gateway/internal/envoygateway/config"
+	"github.com/envoyproxy/gateway/internal/infrastructure"
 	"github.com/envoyproxy/gateway/internal/provider"
 )
 
@@ -57,6 +58,9 @@ func server() error {
 	}
 
 	if err := provider.Start(cfg); err != nil {
+		return err
+	}
+	if err := infrastructure.StartManager(cfg); err != nil {
 		return err
 	}
 	return nil

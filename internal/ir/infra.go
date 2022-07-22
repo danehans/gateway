@@ -1,11 +1,15 @@
 package ir
 
 import (
-	cfgv1a1 "github.com/envoyproxy/gateway/api/config/v1alpha1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
+
+//+kubebuilder:object:root=true
 
 // Infra defines managed infrastructure.
 type Infra struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
 	// Proxy defines managed proxy infrastructure.
 	Proxy *ProxyInfra
 }
@@ -19,8 +23,10 @@ type ProxyInfra struct {
 	Name string
 	// Namespace is the namespace used for managed proxy infrastructure.
 	Namespace string
-	// Config defines user-facing configuration of the managed proxy infrastructure.
-	Config *cfgv1a1.EnvoyProxy
 	// Image is the container image used for the managed proxy infrastructure.
 	Image string
+}
+
+func init() {
+	SchemeBuilder.Register(&Infra{})
 }
