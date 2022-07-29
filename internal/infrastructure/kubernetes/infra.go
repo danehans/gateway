@@ -1,14 +1,11 @@
 package kubernetes
 
 import (
-	"context"
-	"errors"
 	"fmt"
+	"github.com/envoyproxy/gateway/internal/infrastructure"
 
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	"github.com/envoyproxy/gateway/internal/ir"
 )
 
 const (
@@ -20,6 +17,7 @@ type Kind string
 // Infra holds all the translated Infra IR resources and provides
 // the scaffolding for the managing Kubernetes infrastructure.
 type Infra struct {
+	infrastructure.Manager
 	Client    client.Client
 	Resources *Resources
 }
@@ -55,29 +53,6 @@ func (i *Infra) addResource(kind Kind, obj client.Object) error {
 		i.Resources.ServiceAccount = sa
 	default:
 		return fmt.Errorf("unexpected object kind %s", obj.GetObjectKind())
-	}
-
-	return nil
-}
-
-// CreateInfra creates the managed kube infra if it doesn't exist.
-func (i *Infra) CreateInfra(ctx context.Context, infra *ir.Infra) error {
-	if infra == nil {
-		return errors.New("infra ir is nil")
-	}
-
-	if infra.Proxy == nil {
-		return errors.New("infra proxy ir is nil")
-	}
-
-	if i.Resources == nil {
-		i.Resources = &Resources{
-			ServiceAccount: new(corev1.ServiceAccount),
-		}
-	}
-
-	if err := i.createServiceAccountIfNeeded(ctx, infra); err != nil {
-		return err
 	}
 
 	return nil
