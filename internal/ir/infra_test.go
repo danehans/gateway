@@ -4,6 +4,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/envoyproxy/gateway/api/config/v1alpha1"
 )
 
 func TestValidateInfra(t *testing.T) {
@@ -66,6 +68,91 @@ func TestValidateInfra(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 			}
+		})
+	}
+}
+
+func TestNewInfra(t *testing.T) {
+	testCases := []struct {
+		name     string
+		expected *Infra
+	}{
+		{
+			name: "default infra",
+			expected: &Infra{
+				// Kube is the only supported provider type.
+				Provider: v1alpha1.ProviderTypePtr(v1alpha1.ProviderTypeKubernetes),
+				Proxy:    NewProxyInfra(),
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			actual := NewInfra()
+			require.Equal(t, tc.expected, actual)
+		})
+	}
+}
+
+func TestNewProxyInfra(t *testing.T) {
+	testCases := []struct {
+		name     string
+		expected *ProxyInfra
+	}{
+		{
+			name: "default infra",
+			expected: &ProxyInfra{
+				Name:      DefaultProxyName,
+				Namespace: DefaultProxyNamespace,
+				Image:     DefaultProxyImage,
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			actual := NewProxyInfra()
+			require.Equal(t, tc.expected, actual)
+		})
+	}
+}
+
+func TestObjectName(t *testing.T) {
+	defaultInfra := NewInfra()
+
+	testCases := []struct {
+		name     string
+		infra    *Infra
+		expected string
+	}{
+		{
+			name:     "default infra",
+			infra:    defaultInfra,
+			expected: "envoy-default",
+		},
+		{
+			name: "defined infra",
+			infra: &Infra{
+				Proxy: &ProxyInfra{
+					Name: "foo",
+				},
+			},
+			expected: "envoy-foo",
+		},
+		{
+			name: "unspecified infra name",
+			infra: &Infra{
+				Proxy: &ProxyInfra{},
+			},
+			expected: "envoy-default",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			actual := tc.infra.Proxy.ObjectName()
+			require.Equal(t, tc.expected, actual)
 		})
 	}
 }

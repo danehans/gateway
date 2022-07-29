@@ -11,14 +11,10 @@ import (
 
 	"github.com/envoyproxy/gateway/internal/envoygateway"
 	"github.com/envoyproxy/gateway/internal/ir"
-	"github.com/envoyproxy/gateway/internal/log"
 )
 
 func TestCreateServiceAccountIfNeeded(t *testing.T) {
-	logger, err := log.NewLogger()
-	require.NoError(t, err)
-
-	kubeCtx := Infra{Log: logger}
+	kubeCtx := new(Infra)
 
 	testCases := []struct {
 		name    string
@@ -84,6 +80,7 @@ func TestCreateServiceAccountIfNeeded(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			if tc.current != nil {
 				kubeCtx.Client = fakeclient.NewClientBuilder().WithScheme(envoygateway.GetScheme()).WithObjects(tc.current).Build()
 			} else {

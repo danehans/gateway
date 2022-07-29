@@ -12,14 +12,10 @@ import (
 
 	"github.com/envoyproxy/gateway/internal/envoygateway"
 	"github.com/envoyproxy/gateway/internal/ir"
-	"github.com/envoyproxy/gateway/internal/log"
 )
 
 func TestCreateIfNeeded(t *testing.T) {
-	logger, err := log.NewLogger()
-	require.NoError(t, err)
-
-	kube := Infra{Log: logger}
+	kube := new(Infra)
 
 	testCases := []struct {
 		name   string
@@ -28,13 +24,8 @@ func TestCreateIfNeeded(t *testing.T) {
 		expect bool
 	}{
 		{
-			name: "happy-path",
-			in: &ir.Infra{
-				Proxy: &ir.ProxyInfra{
-					Name:      "test",
-					Namespace: "test",
-				},
-			},
+			name: "default infra",
+			in:   ir.NewInfra(),
 			out: &Resources{
 				ServiceAccount: &corev1.ServiceAccount{
 					TypeMeta: metav1.TypeMeta{
@@ -42,68 +33,47 @@ func TestCreateIfNeeded(t *testing.T) {
 						APIVersion: "v1",
 					},
 					ObjectMeta: metav1.ObjectMeta{
-						Namespace: "test",
-						Name:      "test",
+						Namespace:       "default",
+						Name:            "envoy-default",
+						ResourceVersion: "1",
 					},
 				},
 			},
 			expect: true,
 		},
 		{
-			name: "nil-infra",
-			in:   nil,
-			out: &Resources{
-				ServiceAccount: &corev1.ServiceAccount{
-					TypeMeta: metav1.TypeMeta{
-						Kind:       "ServiceAccount",
-						APIVersion: "v1",
-					},
-					ObjectMeta: metav1.ObjectMeta{
-						Namespace: "test",
-						Name:      "test",
-					},
-				},
-			},
+			name:   "nil-infra",
+			in:     nil,
+			out:    &Resources{},
 			expect: false,
 		},
 		{
 			name: "nil-infra-proxy",
-			in:   &ir.Infra{},
-			out: &Resources{
-				ServiceAccount: &corev1.ServiceAccount{
-					TypeMeta: metav1.TypeMeta{
-						Kind:       "ServiceAccount",
-						APIVersion: "v1",
-					},
-					ObjectMeta: metav1.ObjectMeta{
-						Namespace: "test",
-						Name:      "test",
-					},
-				},
+			in: &ir.Infra{
+				Proxy: nil,
 			},
+			out:    &Resources{},
 			expect: false,
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			kube.Client = fakeclient.NewClientBuilder().WithScheme(envoygateway.GetScheme()).WithObjects(tc.out.ServiceAccount).Build()
+			t.Parallel()
+			kube.Client = fakeclient.NewClientBuilder().WithScheme(envoygateway.GetScheme()).Build()
 			err := kube.CreateInfra(context.Background(), tc.in)
 			if !tc.expect {
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
-				require.Equal(t, tc.out, kube.Resources)
+				require.Equal(t, *tc.out.ServiceAccount, *kube.Resources.ServiceAccount)
 			}
 		})
 	}
 }
 
 func TestAddResource(t *testing.T) {
-	logger, err := log.NewLogger()
-	require.NoError(t, err)
-
-	kube := Infra{Log: logger}
+	kube := new(Infra)
 
 	testCases := []struct {
 		name string
@@ -133,6 +103,7 @@ func TestAddResource(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			kube.Client = fakeclient.NewClientBuilder().WithScheme(envoygateway.GetScheme()).Build()
 			err := kube.addResource(tc.kind, tc.obj)
 			require.NoError(t, err)

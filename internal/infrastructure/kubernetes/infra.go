@@ -5,11 +5,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/envoyproxy/gateway/internal/envoygateway/config"
 	"github.com/envoyproxy/gateway/internal/ir"
 )
 
@@ -23,7 +21,6 @@ type Kind string
 // the scaffolding for the managing Kubernetes infrastructure.
 type Infra struct {
 	Client    client.Client
-	Log       logr.Logger
 	Resources *Resources
 }
 
@@ -33,10 +30,9 @@ type Resources struct {
 }
 
 // NewInfra returns a new Infra.
-func NewInfra(cli client.Client, cfg *config.Server) *Infra {
+func NewInfra(cli client.Client) *Infra {
 	return &Infra{
 		Client: cli,
-		Log:    cfg.Logger,
 		Resources: &Resources{
 			ServiceAccount: new(corev1.ServiceAccount),
 		},

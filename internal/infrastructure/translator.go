@@ -5,32 +5,35 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/go-logr/logr"
+
 	"github.com/envoyproxy/gateway/api/config/v1alpha1"
-	"github.com/envoyproxy/gateway/internal/envoygateway/config"
 	"github.com/envoyproxy/gateway/internal/ir"
 )
 
-// Translate translates the provided infra ir into managed infrastructure.
-func Translate(ctx context.Context, cfg *config.Server, infra *ir.Infra) (*Manager, error) {
+// Translate translates the provided infra into managed infrastructure.
+func Translate(ctx context.Context, infra *ir.Infra) (*Manager, error) {
 	if err := ir.ValidateInfra(infra); err != nil {
 		return nil, err
 	}
 
-	if cfg == nil {
-		return nil, errors.New("server config is nil")
+	if infra == nil {
+		return nil, errors.New("infra is nil")
 	}
 
-	mgr, err := NewManager(cfg)
+	mgr, err := NewManager(infra)
 	if err != nil {
 		return nil, err
 	}
 
-	log := cfg.Logger
+	log, err := logr.FromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
 
-	if cfg.EnvoyGateway == nil ||
-		cfg.EnvoyGateway.Provider == nil ||
-		cfg.EnvoyGateway.Provider.Type == v1alpha1.ProviderTypeKubernetes {
-		log.Info("Using infra manager", "type", v1alpha1.ProviderTypeKubernetes)
+	// Kube is the only supported provider type.
+	if *infra.GetProvider() == v1alpha1.ProviderTypeKubernetes {
+		log.Info("Using provider", "type", v1alpha1.ProviderTypeKubernetes)
 
 		// A nil infra proxy ir means the proxy infra should be deleted, but metadata is
 		// required to know the ns/name of the resources to delete. Add support for deleting
@@ -42,5 +45,5 @@ func Translate(ctx context.Context, cfg *config.Server, infra *ir.Infra) (*Manag
 		return mgr, nil
 	}
 
-	return nil, fmt.Errorf("unsupported infra manager type %v", cfg.EnvoyGateway.Provider.Type)
+	return nil, fmt.Errorf("unsupported provider type %v", infra.Provider)
 }

@@ -71,7 +71,7 @@ func (i *Infra) expectedServiceAccount(infra *ir.Infra) *corev1.ServiceAccount {
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: infra.Proxy.Namespace,
-			Name:      infra.Proxy.Name,
+			Name:      infra.Proxy.ObjectName(),
 		},
 	}
 }

@@ -2,19 +2,23 @@ package ir
 
 import (
 	"errors"
+	"fmt"
 
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 
-	cfgv1a1 "github.com/envoyproxy/gateway/api/config/v1alpha1"
+	"github.com/envoyproxy/gateway/api/config/v1alpha1"
 )
 
 const (
+	DefaultProxyName      = "default"
 	DefaultProxyNamespace = "default"
 	DefaultProxyImage     = "envoyproxy/envoy-dev:latest"
 )
 
 // Infra defines managed infrastructure.
 type Infra struct {
+	// Provider is the provider of the infrastructure.
+	Provider *v1alpha1.ProviderType
 	// Proxy defines managed proxy infrastructure.
 	Proxy *ProxyInfra
 }
@@ -30,7 +34,7 @@ type ProxyInfra struct {
 	// If unset, defaults to "default".
 	Namespace string
 	// Config defines user-facing configuration of the managed proxy infrastructure.
-	Config *cfgv1a1.EnvoyProxy
+	Config *v1alpha1.EnvoyProxy
 	// Image is the container image used for the managed proxy infrastructure.
 	// If unset, defaults to "envoyproxy/envoy-dev:latest".
 	Image string
@@ -39,16 +43,47 @@ type ProxyInfra struct {
 // NewInfra returns a new Infra with default parameters.
 func NewInfra() *Infra {
 	return &Infra{
-		Proxy: NewProxyInfra(),
+		// Kube is the only supported provider type.
+		Provider: v1alpha1.ProviderTypePtr(v1alpha1.ProviderTypeKubernetes),
+		Proxy:    NewProxyInfra(),
 	}
 }
 
 // NewProxyInfra returns a new ProxyInfra with default parameters.
 func NewProxyInfra() *ProxyInfra {
 	return &ProxyInfra{
+		Name:      DefaultProxyName,
 		Namespace: DefaultProxyNamespace,
 		Image:     DefaultProxyImage,
 	}
+}
+
+// GetProvider returns the infra provider.
+func (i *Infra) GetProvider() *v1alpha1.ProviderType {
+	if i.Provider != nil {
+		return i.Provider
+	}
+	// Kube is the default infra provider.
+	return v1alpha1.ProviderTypePtr(v1alpha1.ProviderTypeKubernetes)
+}
+
+// GetProxyInfra returns the ProxyInfra.
+func (i *Infra) GetProxyInfra() *ProxyInfra {
+	if i.Proxy == nil {
+		return NewProxyInfra()
+	}
+	p := new(ProxyInfra)
+	if len(i.Proxy.Namespace) == 0 {
+		p.Namespace = DefaultProxyNamespace
+	}
+	if len(i.Proxy.Name) == 0 {
+		p.Name = DefaultProxyName
+	}
+	if len(i.Proxy.Image) == 0 {
+		p.Image = DefaultProxyImage
+	}
+
+	return p
 }
 
 // ValidateInfra validates the provided Infra.
@@ -85,4 +120,12 @@ func ValidateProxyInfra(pInfra *ProxyInfra) error {
 	}
 
 	return utilerrors.NewAggregate(errs)
+}
+
+// ObjectName returns the name of proxy infrastructure objects.
+func (p *ProxyInfra) ObjectName() string {
+	if len(p.Name) == 0 {
+		return fmt.Sprintf("envoy-%s", DefaultProxyName)
+	}
+	return "envoy-" + p.Name
 }
