@@ -67,7 +67,7 @@ func (i *Infra) expectedServiceAccount(infra *ir.Infra) *corev1.ServiceAccount {
 	return &corev1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: i.Namespace,
-			Name:      infra.Proxy.ObjectName(),
+			Name:      infra.Proxy.ProxyName(),
 		},
 	}
 }

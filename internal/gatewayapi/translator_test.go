@@ -14,6 +14,12 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/gateway-api/apis/v1alpha2"
 	"sigs.k8s.io/yaml"
+
+	"github.com/envoyproxy/gateway/internal/envoygateway/config"
+)
+
+const (
+	defaultNamespace = config.DefaultNamespace
 )
 
 func mustUnmarshal(t *testing.T, val string, out interface{}) {
@@ -102,7 +108,7 @@ func TestIsValidCrossNamespaceRef(t *testing.T) {
 			from: crossNamespaceFrom{
 				group:     "gateway.networking.k8s.io",
 				kind:      "Gateway",
-				namespace: "envoy-gateway-system",
+				namespace: defaultNamespace,
 			},
 			to: crossNamespaceTo{
 				group:     "",
@@ -120,7 +126,7 @@ func TestIsValidCrossNamespaceRef(t *testing.T) {
 						{
 							Group:     "gateway.networking.k8s.io",
 							Kind:      "Gateway",
-							Namespace: "envoy-gateway-system",
+							Namespace: defaultNamespace,
 						},
 					},
 					To: []v1alpha2.ReferenceGrantTo{

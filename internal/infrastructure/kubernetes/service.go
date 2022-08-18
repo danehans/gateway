@@ -48,7 +48,7 @@ func (i *Infra) createServiceIfNeeded(ctx context.Context, infra *ir.Infra) erro
 // getService gets the Service from the kube api for the provided infra.
 func (i *Infra) getService(ctx context.Context, infra *ir.Infra) (*corev1.Service, error) {
 	ns := i.Namespace
-	name := infra.Proxy.ObjectName()
+	name := infra.Proxy.ProxyName()
 	key := types.NamespacedName{
 		Namespace: ns,
 		Name:      name,
@@ -85,7 +85,7 @@ func (i *Infra) expectedService(infra *ir.Infra) *corev1.Service {
 		ObjectMeta: metav1.ObjectMeta{
 
 			Namespace: i.Namespace,
-			Name:      infra.Proxy.ObjectName(),
+			Name:      infra.Proxy.ProxyName(),
 			Labels:    envoyLabels(),
 		},
 		Spec: corev1.ServiceSpec{

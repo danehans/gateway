@@ -65,7 +65,7 @@ func (i *Infra) getDeployment(ctx context.Context, infra *ir.Infra) (*appsv1.Dep
 	name := infra.Proxy.Name
 	key := types.NamespacedName{
 		Namespace: ns,
-		Name:      infra.GetProxyInfra().ObjectName(),
+		Name:      infra.GetProxyInfra().ProxyName(),
 	}
 	deploy := new(appsv1.Deployment)
 	if err := i.Client.Get(ctx, key, deploy); err != nil {
@@ -86,7 +86,7 @@ func (i *Infra) expectedDeployment(infra *ir.Infra) *appsv1.Deployment {
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: i.Namespace,
-			Name:      infra.GetProxyInfra().ObjectName(),
+			Name:      infra.GetProxyInfra().ProxyName(),
 			Labels:    envoyLabels(),
 		},
 		Spec: appsv1.DeploymentSpec{
@@ -106,7 +106,7 @@ func (i *Infra) expectedDeployment(infra *ir.Infra) *appsv1.Deployment {
 							},
 						},
 					},
-					ServiceAccountName:            infra.Proxy.ObjectName(),
+					ServiceAccountName:            infra.Proxy.ProxyName(),
 					AutomountServiceAccountToken:  pointer.BoolPtr(false),
 					TerminationGracePeriodSeconds: pointer.Int64Ptr(int64(300)),
 					DNSPolicy:                     corev1.DNSClusterFirst,

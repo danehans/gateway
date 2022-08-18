@@ -2,7 +2,6 @@ package ir
 
 import (
 	"errors"
-	"fmt"
 
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 
@@ -10,7 +9,7 @@ import (
 )
 
 const (
-	DefaultProxyName  = "default"
+	DefaultProxyName  = "envoy"
 	DefaultProxyImage = "envoyproxy/envoy-dev:latest"
 )
 
@@ -178,10 +177,10 @@ func ValidateProxyInfra(pInfra *ProxyInfra) error {
 	return utilerrors.NewAggregate(errs)
 }
 
-// ObjectName returns the name of the proxy infrastructure object.
-func (p *ProxyInfra) ObjectName() string {
+// ProxyName returns the name of the proxy infrastructure object.
+func (p *ProxyInfra) ProxyName() string {
 	if len(p.Name) == 0 {
-		return fmt.Sprintf("envoy-%s", DefaultProxyName)
+		return DefaultProxyName
 	}
-	return "envoy-" + p.Name
+	return p.Name
 }

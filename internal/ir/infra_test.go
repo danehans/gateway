@@ -174,7 +174,7 @@ func TestObjectName(t *testing.T) {
 		{
 			name:     "default infra",
 			infra:    defaultInfra,
-			expected: "envoy-default",
+			expected: "envoy",
 		},
 		{
 			name: "defined infra",
@@ -183,20 +183,20 @@ func TestObjectName(t *testing.T) {
 					Name: "foo",
 				},
 			},
-			expected: "envoy-foo",
+			expected: "foo",
 		},
 		{
 			name: "unspecified infra name",
 			infra: &Infra{
 				Proxy: &ProxyInfra{},
 			},
-			expected: "envoy-default",
+			expected: "envoy",
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			actual := tc.infra.Proxy.ObjectName()
+			actual := tc.infra.Proxy.ProxyName()
 			require.Equal(t, tc.expected, actual)
 		})
 	}

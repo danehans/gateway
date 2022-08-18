@@ -7,6 +7,10 @@ import (
 	"github.com/envoyproxy/gateway/internal/log"
 )
 
+const (
+	DefaultNamespace = "envoy-gateway-system"
+)
+
 // Server wraps the EnvoyGateway configuration and additional parameters
 // used by Envoy Gateway server.
 type Server struct {
