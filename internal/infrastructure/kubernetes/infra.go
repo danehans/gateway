@@ -26,6 +26,7 @@ type Infra struct {
 // Resources are managed Kubernetes resources.
 type Resources struct {
 	ServiceAccount *corev1.ServiceAccount
+	Secret         *corev1.Secret
 	Deployment     *appsv1.Deployment
 	Service        *corev1.Service
 }
@@ -43,6 +44,7 @@ func NewInfra(cli client.Client) *Infra {
 func newResources() *Resources {
 	return &Resources{
 		ServiceAccount: new(corev1.ServiceAccount),
+		Secret:         new(corev1.Secret),
 		Deployment:     new(appsv1.Deployment),
 		Service:        new(corev1.Service),
 	}
@@ -60,6 +62,8 @@ func (i *Infra) addResource(obj client.Object) error {
 	switch o := obj.(type) {
 	case *corev1.ServiceAccount:
 		i.Resources.ServiceAccount = o
+	case *corev1.Secret:
+		i.Resources.Secret = o
 	case *appsv1.Deployment:
 		i.Resources.Deployment = o
 	case *corev1.Service:
@@ -86,6 +90,10 @@ func (i *Infra) CreateInfra(ctx context.Context, infra *ir.Infra) error {
 	}
 
 	if err := i.createServiceAccountIfNeeded(ctx, infra); err != nil {
+		return err
+	}
+
+	if err := i.createSecretIfNeeded(ctx, infra); err != nil {
 		return err
 	}
 

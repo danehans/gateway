@@ -53,3 +53,13 @@ func DefaultProvider() *Provider {
 func ProviderTypePtr(p ProviderType) *ProviderType {
 	return &p
 }
+
+// GetProvider returns the Envoy Gateway provider. The default provider type will
+// be set if unspecified by the receiver.
+func (e *EnvoyGateway) GetProvider() *Provider {
+	if e.Provider == nil {
+		e.Provider = DefaultProvider()
+		return e.Provider
+	}
+	return e.Provider
+}
