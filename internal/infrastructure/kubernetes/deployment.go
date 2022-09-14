@@ -95,7 +95,7 @@ func (b *bootstrapConfig) render() error {
 }
 
 // expectedDeployment returns the expected Deployment based on the provided infra.
-func (i *Infra) expectedDeployment(infra *ir.Infra) (*appsv1.Deployment, error) {
+func (im *Infra) expectedDeployment(infra *ir.Infra) (*appsv1.Deployment, error) {
 	containers, err := expectedContainers(infra)
 	if err != nil {
 		return nil, err
@@ -113,7 +113,7 @@ func (i *Infra) expectedDeployment(infra *ir.Infra) (*appsv1.Deployment, error) 
 			APIVersion: "apps/v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace: i.Namespace,
+			Namespace: im.Namespace,
 			Name:      envoyDeploymentName,
 			Labels:    labels,
 		},
@@ -216,22 +216,22 @@ func expectedContainers(infra *ir.Infra) ([]corev1.Container, error) {
 
 // createDeployment creates a Deployment in the kube api server based on the provided
 // infra, if it doesn't exist and updates it if it does.
-func (i *Infra) createOrUpdateDeployment(ctx context.Context, infra *ir.Infra) error {
-	deploy, err := i.expectedDeployment(infra)
+func (im *Infra) createOrUpdateDeployment(ctx context.Context, infra *ir.Infra) error {
+	deploy, err := im.expectedDeployment(infra)
 	if err != nil {
 		return err
 	}
 
 	current := &appsv1.Deployment{}
 	key := types.NamespacedName{
-		Namespace: i.Namespace,
+		Namespace: im.Namespace,
 		Name:      envoyDeploymentName,
 	}
 
-	if err := i.Client.Get(ctx, key, current); err != nil {
+	if err := im.Client.Get(ctx, key, current); err != nil {
 		// Create if not found.
 		if kerrors.IsNotFound(err) {
-			if err := i.Client.Create(ctx, deploy); err != nil {
+			if err := im.Client.Create(ctx, deploy); err != nil {
 				return fmt.Errorf("failed to create deployment %s/%s: %w",
 					deploy.Namespace, deploy.Name, err)
 			}
@@ -239,30 +239,30 @@ func (i *Infra) createOrUpdateDeployment(ctx context.Context, infra *ir.Infra) e
 	} else {
 		// Update if current value is different.
 		if !reflect.DeepEqual(deploy.Spec, current.Spec) {
-			if err := i.Client.Update(ctx, deploy); err != nil {
+			if err := im.Client.Update(ctx, deploy); err != nil {
 				return fmt.Errorf("failed to update deployment %s/%s: %w",
 					deploy.Namespace, deploy.Name, err)
 			}
 		}
 	}
 
-	if err := i.updateResource(deploy); err != nil {
+	if err := im.updateResource(deploy); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-// deleteService deletes the Envoy Deployment in the kube api server, if it exists.
-func (i *Infra) deleteDeployment(ctx context.Context) error {
+// deleteServices deletes the Envoy Deployment in the kube api server, if it exists.
+func (im *Infra) deleteDeployment(ctx context.Context) error {
 	deploy := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace: i.Namespace,
+			Namespace: im.Namespace,
 			Name:      envoyDeploymentName,
 		},
 	}
 
-	if err := i.Client.Delete(ctx, deploy); err != nil {
+	if err := im.Client.Delete(ctx, deploy); err != nil {
 		if kerrors.IsNotFound(err) {
 			return nil
 		}

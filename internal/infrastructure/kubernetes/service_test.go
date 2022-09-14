@@ -79,21 +79,23 @@ func TestDesiredService(t *testing.T) {
 			ContainerPort: 2443,
 		},
 	}
-	svc, err := kube.expectedService(infra)
+	svcs, err := kube.expectedServices(infra)
 	require.NoError(t, err)
 
-	checkServiceHasPort(t, svc, 80)
-	checkServiceHasPort(t, svc, 443)
-	checkServiceHasTargetPort(t, svc, 2080)
-	checkServiceHasTargetPort(t, svc, 2443)
+	for _, svc := range svcs {
+		checkServiceHasPort(t, svc, 80)
+		checkServiceHasPort(t, svc, 443)
+		checkServiceHasTargetPort(t, svc, 2080)
+		checkServiceHasTargetPort(t, svc, 2443)
 
-	// Ensure the Envoy service has the expected labels.
-	lbls := envoyAppLabel()
-	lbls[gatewayapi.OwningGatewayClassLabel] = "test-gc"
-	checkServiceHasLabels(t, svc, lbls)
+		// Ensure the Envoy service has the expected labels.
+		lbls := envoyAppLabel()
+		lbls[gatewayapi.OwningGatewayClassLabel] = "test-gc"
+		checkServiceHasLabels(t, svc, lbls)
 
-	for _, port := range infra.Proxy.Listeners[0].Ports {
-		checkServiceHasPortName(t, svc, port.Name)
+		for _, port := range infra.Proxy.Listeners[0].Ports {
+			checkServiceHasPortName(t, svc, port.Name)
+		}
 	}
 }
 
@@ -114,7 +116,7 @@ func TestDeleteService(t *testing.T) {
 				mu:        sync.Mutex{},
 				Namespace: "test",
 			}
-			err := kube.deleteService(context.Background())
+			err := kube.deleteServices(context.Background())
 			require.NoError(t, err)
 		})
 	}

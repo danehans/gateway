@@ -10,7 +10,6 @@ import (
 
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
-	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -173,7 +172,7 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, request reconcile.Req
 	for i := range acceptedGateways {
 		gw := acceptedGateways[i]
 		// Get the status address of the Gateway's associated Service.
-		svc, err := r.serviceForGateway(ctx)
+		svc, err := r.serviceForGateway(ctx, &gw)
 		if err != nil {
 			r.log.Info("failed to get service for gateway",
 				"namespace", gw.Namespace, "name", gw.Name)
@@ -245,17 +244,18 @@ func gatewaysOfClass(gc *gwapiv1b1.GatewayClass, gwList *gwapiv1b1.GatewayList) 
 }
 
 // serviceForGateway returns the Envoy service, returning nil if the service doesn't exist.
-func (r *gatewayReconciler) serviceForGateway(ctx context.Context) (*corev1.Service, error) {
-	key := types.NamespacedName{
-		Namespace: config.EnvoyGatewayNamespace,
-		Name:      config.EnvoyServiceName,
+func (r *gatewayReconciler) serviceForGateway(ctx context.Context, gw *gwapiv1b1.Gateway) (*corev1.Service, error) {
+	svcList := corev1.ServiceList{}
+	if err := r.client.List(ctx, &svcList, client.InNamespace(config.EnvoyGatewayNamespace)); err != nil {
+		return nil, fmt.Errorf("failed listing services: %w", err)
 	}
-	svc := new(corev1.Service)
-	if err := r.client.Get(ctx, key, svc); err != nil {
-		if kerrors.IsNotFound(err) {
-			return nil, nil
+
+	for i := range svcList.Items {
+		svc := svcList.Items[i]
+		if svc.Name == fmt.Sprintf("%s-%s-%s", config.EnvoyServiceName, gw.Namespace, gw.Name) {
+			return &svc, nil
 		}
-		return nil, err
 	}
-	return svc, nil
+	// Service for Gateway not found.
+	return nil, nil
 }

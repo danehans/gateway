@@ -57,20 +57,20 @@ func newResources() *Resources {
 
 // updateResource updates the obj to the infra resources, using the object type
 // to identify the object kind to add.
-func (i *Infra) updateResource(obj client.Object) error {
-	i.mu.Lock()
-	defer i.mu.Unlock()
-	if i.Resources == nil {
-		i.Resources = new(Resources)
+func (im *Infra) updateResource(obj client.Object) error {
+	im.mu.Lock()
+	defer im.mu.Unlock()
+	if im.Resources == nil {
+		im.Resources = new(Resources)
 	}
 
 	switch o := obj.(type) {
 	case *corev1.ServiceAccount:
-		i.Resources.ServiceAccount = o
+		im.Resources.ServiceAccount = o
 	case *appsv1.Deployment:
-		i.Resources.Deployment = o
+		im.Resources.Deployment = o
 	case *corev1.Service:
-		i.Resources.Service = o
+		im.Resources.Service = o
 	default:
 		return fmt.Errorf("unexpected object kind %s", obj.GetObjectKind())
 	}
@@ -79,7 +79,7 @@ func (i *Infra) updateResource(obj client.Object) error {
 }
 
 // CreateInfra creates the managed kube infra, if it doesn't exist.
-func (i *Infra) CreateInfra(ctx context.Context, infra *ir.Infra) error {
+func (im *Infra) CreateInfra(ctx context.Context, infra *ir.Infra) error {
 	if infra == nil {
 		return errors.New("infra ir is nil")
 	}
@@ -88,19 +88,19 @@ func (i *Infra) CreateInfra(ctx context.Context, infra *ir.Infra) error {
 		return errors.New("infra proxy ir is nil")
 	}
 
-	if i.Resources == nil {
-		i.Resources = newResources()
+	if im.Resources == nil {
+		im.Resources = newResources()
 	}
 
-	if err := i.createOrUpdateServiceAccount(ctx, infra); err != nil {
+	if err := im.createOrUpdateServiceAccount(ctx, infra); err != nil {
 		return err
 	}
 
-	if err := i.createOrUpdateDeployment(ctx, infra); err != nil {
+	if err := im.createOrUpdateDeployment(ctx, infra); err != nil {
 		return err
 	}
 
-	if err := i.createOrUpdateService(ctx, infra); err != nil {
+	if err := im.createOrUpdateServices(ctx, infra); err != nil {
 		return err
 	}
 
@@ -108,20 +108,20 @@ func (i *Infra) CreateInfra(ctx context.Context, infra *ir.Infra) error {
 }
 
 // DeleteInfra removes the managed kube infra, if it doesn't exist.
-func (i *Infra) DeleteInfra(ctx context.Context, infra *ir.Infra) error {
+func (im *Infra) DeleteInfra(ctx context.Context, infra *ir.Infra) error {
 	if infra == nil {
 		return errors.New("infra ir is nil")
 	}
 
-	if err := i.deleteService(ctx); err != nil {
+	if err := im.deleteServices(ctx); err != nil {
 		return err
 	}
 
-	if err := i.deleteDeployment(ctx); err != nil {
+	if err := im.deleteDeployment(ctx); err != nil {
 		return err
 	}
 
-	if err := i.deleteServiceAccount(ctx); err != nil {
+	if err := im.deleteServiceAccount(ctx); err != nil {
 		return err
 	}
 

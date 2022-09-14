@@ -17,14 +17,14 @@ const (
 )
 
 // expectedServiceAccount returns the expected proxy serviceAccount.
-func (i *Infra) expectedServiceAccount() *corev1.ServiceAccount {
+func (im *Infra) expectedServiceAccount() *corev1.ServiceAccount {
 	return &corev1.ServiceAccount{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "ServiceAccount",
 			APIVersion: "v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace: i.Namespace,
+			Namespace: im.Namespace,
 			Name:      envoyServiceAccountName,
 		},
 	}
@@ -32,19 +32,19 @@ func (i *Infra) expectedServiceAccount() *corev1.ServiceAccount {
 
 // createOrUpdateServiceAccount creates the Envoy ServiceAccount in the kube api server,
 // if it doesn't exist and updates it if it does.
-func (i *Infra) createOrUpdateServiceAccount(ctx context.Context, _ *ir.Infra) error {
-	sa := i.expectedServiceAccount()
+func (im *Infra) createOrUpdateServiceAccount(ctx context.Context, _ *ir.Infra) error {
+	sa := im.expectedServiceAccount()
 
 	current := &corev1.ServiceAccount{}
 	key := types.NamespacedName{
-		Namespace: i.Namespace,
+		Namespace: im.Namespace,
 		Name:      envoyServiceAccountName,
 	}
 
-	if err := i.Client.Get(ctx, key, current); err != nil {
+	if err := im.Client.Get(ctx, key, current); err != nil {
 		if kerrors.IsNotFound(err) {
 			// Create if it does not exist.
-			if err := i.Client.Create(ctx, sa); err != nil {
+			if err := im.Client.Create(ctx, sa); err != nil {
 				return fmt.Errorf("failed to create serviceaccount %s/%s: %w",
 					sa.Namespace, sa.Name, err)
 			}
@@ -52,13 +52,13 @@ func (i *Infra) createOrUpdateServiceAccount(ctx context.Context, _ *ir.Infra) e
 	} else {
 		// Since the ServiceAccount does not have a specific Spec field to compare
 		// just perform an update for now.
-		if err := i.Client.Update(ctx, sa); err != nil {
+		if err := im.Client.Update(ctx, sa); err != nil {
 			return fmt.Errorf("failed to update serviceaccount %s/%s: %w",
 				sa.Namespace, sa.Name, err)
 		}
 	}
 
-	if err := i.updateResource(sa); err != nil {
+	if err := im.updateResource(sa); err != nil {
 		return err
 	}
 
@@ -67,14 +67,14 @@ func (i *Infra) createOrUpdateServiceAccount(ctx context.Context, _ *ir.Infra) e
 
 // deleteServiceAccount deletes the Envoy ServiceAccount in the kube api server,
 // if it exists.
-func (i *Infra) deleteServiceAccount(ctx context.Context) error {
+func (im *Infra) deleteServiceAccount(ctx context.Context) error {
 	sa := &corev1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace: i.Namespace,
+			Namespace: im.Namespace,
 			Name:      envoyServiceAccountName,
 		},
 	}
-	if err := i.Client.Delete(ctx, sa); err != nil {
+	if err := im.Client.Delete(ctx, sa); err != nil {
 		if kerrors.IsNotFound(err) {
 			return nil
 		}
