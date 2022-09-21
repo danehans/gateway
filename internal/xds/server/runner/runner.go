@@ -74,7 +74,6 @@ func (r *Runner) setupXdsServer(ctx context.Context) {
 	// Set up the gRPC server and register the xDS handler.
 	cfg := r.tlsConfig(xdsTLSCertFilename, xdsTLSKeyFilename, xdsTLSCaFilename)
 	r.grpc = grpc.NewServer(grpc.Creds(credentials.NewTLS(cfg)))
-
 	r.cache = cache.NewSnapshotCache(false, r.Logger)
 	registerServer(controlplane_server_v3.NewServer(ctx, r.cache, r.cache), r.grpc)
 
@@ -115,15 +114,16 @@ func (r *Runner) subscribeAndTranslate(ctx context.Context) {
 	for range r.Xds.Subscribe(ctx) {
 		r.Logger.Info("received a notification")
 		// Load all resources required for translation
-		xds := r.Xds.Get()
-		if xds == nil {
-			r.Logger.Info("xds is nil, skipping")
-			continue
-		}
-		// Update snapshot cache
-		err := r.cache.GenerateNewSnapshot(xds.XdsResources)
-		if err != nil {
-			r.Logger.Error(err, "failed to generate a snapshot")
+		for key, xds := range r.Xds.LoadAll() {
+			if xds == nil {
+				r.Logger.Info("xds is nil, skipping")
+				continue
+			}
+			// Update snapshot cache
+			err := r.cache.GenerateNewSnapshot(key, xds.XdsResources)
+			if err != nil {
+				r.Logger.Error(err, "failed to generate a snapshot")
+			}
 		}
 	}
 
