@@ -5,11 +5,13 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	fakeclient "sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	gwapiv1b1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/envoyproxy/gateway/api/config/v1alpha1"
@@ -110,8 +112,230 @@ func TestGatewayHasMatchingController(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			r.client = fakeclient.NewClientBuilder().WithScheme(envoygateway.GetScheme()).WithObjects(match, nonMatch, tc.obj).Build()
-			actual := r.hasMatchingController(tc.obj)
+			actual := r.gatewayHasMatchingController(tc.obj)
 			require.Equal(t, tc.expect, actual)
+		})
+	}
+}
+
+func TestClassHasMatchingController(t *testing.T) {
+	testCases := []struct {
+		name     string
+		obj      client.Object
+		gateways []gwapiv1b1.Gateway
+		expect   bool
+	}{
+		{
+			name: "matching object type, controller name, and managed gateway",
+			obj: &gwapiv1b1.GatewayClass{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "gc1",
+					Namespace: "test",
+				},
+				Spec: gwapiv1b1.GatewayClassSpec{
+					ControllerName: v1alpha1.GatewayControllerName,
+				},
+			},
+			gateways: []gwapiv1b1.Gateway{
+				{
+					TypeMeta: metav1.TypeMeta{
+						Kind:       "Gateway",
+						APIVersion: fmt.Sprintf("%s/%s", gwapiv1b1.GroupName, gwapiv1b1.GroupVersion.Version),
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test",
+						Namespace: "test",
+					},
+					Spec: gwapiv1b1.GatewaySpec{
+						GatewayClassName: gwapiv1b1.ObjectName("gc1"),
+					},
+				},
+			},
+			expect: true,
+		},
+		{
+			name: "matching object type and controller name, but no managed gateways",
+			obj: &gwapiv1b1.GatewayClass{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "gc1",
+					Namespace: "test",
+				},
+				Spec: gwapiv1b1.GatewayClassSpec{
+					ControllerName: v1alpha1.GatewayControllerName,
+				},
+			},
+			gateways: []gwapiv1b1.Gateway{
+				{
+					TypeMeta: metav1.TypeMeta{
+						Kind:       "Gateway",
+						APIVersion: fmt.Sprintf("%s/%s", gwapiv1b1.GroupName, gwapiv1b1.GroupVersion.Version),
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test",
+						Namespace: "test",
+					},
+					Spec: gwapiv1b1.GatewaySpec{
+						GatewayClassName: gwapiv1b1.ObjectName("unmanaged-gc"),
+					},
+				},
+			},
+			expect: false,
+		},
+		{
+			name: "matching object type and gatewayclass but not controller name",
+			obj: &gwapiv1b1.GatewayClass{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "gc1",
+					Namespace: "test",
+				},
+				Spec: gwapiv1b1.GatewayClassSpec{
+					ControllerName: "not.envoy.gateway.controller",
+				},
+			},
+			expect: false,
+		},
+		{
+			name: "not gatewayclass object type",
+			obj: &gwapiv1b1.Gateway{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "gw1",
+					Namespace: "test",
+				},
+			},
+			expect: false,
+		},
+	}
+
+	// Create the reconciler.
+	logger, err := log.NewLogger()
+	require.NoError(t, err)
+	r := gatewayReconciler{
+		classController: v1alpha1.GatewayControllerName,
+		log:             logger,
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			var objs []client.Object
+			for i := range tc.gateways {
+				objs = append(objs, &tc.gateways[i])
+			}
+			r.client = fakeclient.NewClientBuilder().WithScheme(envoygateway.GetScheme()).WithObjects(objs...).Build()
+			actual := r.classHasMatchingController(tc.obj)
+			require.Equal(t, tc.expect, actual)
+		})
+	}
+}
+
+func TestGetGatewaysForClass(t *testing.T) {
+	testCases := []struct {
+		name     string
+		obj      client.Object
+		gateways []gwapiv1b1.Gateway
+		expect   []reconcile.Request
+	}{
+		{
+			name: "one gateway matches gatewayclass",
+			obj: &gwapiv1b1.GatewayClass{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "test",
+					Name:      "gc1",
+				},
+				Spec: gwapiv1b1.GatewayClassSpec{
+					ControllerName: "test.controller",
+				},
+			},
+			gateways: []gwapiv1b1.Gateway{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: "test",
+						Name:      "gw1",
+					},
+					Spec: gwapiv1b1.GatewaySpec{
+						GatewayClassName: gwapiv1b1.ObjectName("gc1"),
+					},
+				},
+			},
+			expect: []reconcile.Request{
+				{
+					NamespacedName: types.NamespacedName{
+						Namespace: "test",
+						Name:      "gw1",
+					},
+				},
+			},
+		},
+		{
+			name: "one of two gateways match gatewayclass",
+			obj: &gwapiv1b1.GatewayClass{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "test",
+					Name:      "gc1",
+				},
+				Spec: gwapiv1b1.GatewayClassSpec{
+					ControllerName: "test.controller",
+				},
+			},
+			gateways: []gwapiv1b1.Gateway{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: "test",
+						Name:      "gw1",
+					},
+					Spec: gwapiv1b1.GatewaySpec{
+						GatewayClassName: gwapiv1b1.ObjectName("gc1"),
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: "test",
+						Name:      "gw2",
+					},
+					Spec: gwapiv1b1.GatewaySpec{
+						GatewayClassName: gwapiv1b1.ObjectName("gc2"),
+					},
+				},
+			},
+			expect: []reconcile.Request{
+				{
+					NamespacedName: types.NamespacedName{
+						Namespace: "test",
+						Name:      "gw1",
+					},
+				},
+			},
+		},
+		{
+			name: "not a gatewayclass object",
+			obj: &gwapiv1b1.Gateway{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "test",
+					Name:      "gw1",
+				},
+			},
+			expect: []reconcile.Request{},
+		},
+	}
+
+	// Create the reconciler.
+	logger, err := log.NewLogger()
+	require.NoError(t, err)
+	r := &gatewayReconciler{
+		log:             logger,
+		classController: gwapiv1b1.GatewayController(v1alpha1.GatewayControllerName),
+	}
+
+	for i := range testCases {
+		tc := testCases[i]
+		t.Run(tc.name, func(t *testing.T) {
+			objs := []client.Object{tc.obj}
+			for i := range tc.gateways {
+				objs = append(objs, &tc.gateways[i])
+			}
+			r.client = fakeclient.NewClientBuilder().WithScheme(envoygateway.GetScheme()).WithObjects(objs...).Build()
+			reqs := r.getGatewaysForClass(tc.obj)
+			assert.Equal(t, tc.expect, reqs)
 		})
 	}
 }

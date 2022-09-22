@@ -70,12 +70,26 @@ func newGatewayController(mgr manager.Manager, cfg *config.Server, su status.Upd
 	if err := c.Watch(
 		&source.Kind{Type: &gwapiv1b1.Gateway{}},
 		&handler.EnqueueRequestForObject{},
-		predicate.NewPredicateFuncs(r.hasMatchingController),
+		predicate.NewPredicateFuncs(r.gatewayHasMatchingController),
 	); err != nil {
 		return err
 	}
 	r.log.Info("watching gateway objects")
 
+	// Only enqueue GatewayClass objects that match this Envoy Gateway's controller name.
+	if err := c.Watch(
+		&source.Kind{Type: &gwapiv1b1.GatewayClass{}},
+		&handler.EnqueueRequestForObject{},
+		predicate.NewPredicateFuncs(r.classHasMatchingController),
+	); err != nil {
+		return err
+	}
+	r.log.Info("watching gatewayclass objects")
+
+	// Trigger Gateway reconciliation when a managed GatewayClass has changed.
+	if err := c.Watch(&source.Kind{Type: &gwapiv1b1.GatewayClass{}}, r.enqueueRequestForOwningGatewayClass()); err != nil {
+		return err
+	}
 	// Trigger gateway reconciliation when the Envoy Service or Deployment has changed.
 	if err := c.Watch(&source.Kind{Type: &corev1.Service{}}, r.enqueueRequestForOwningGatewayClass()); err != nil {
 		return err
@@ -87,9 +101,42 @@ func newGatewayController(mgr manager.Manager, cfg *config.Server, su status.Upd
 	return nil
 }
 
-// hasMatchingController returns true if the provided object is a Gateway
+// classHasMatchingController returns true if the provided object is a GatewayClass
+// with a Spec.Controller string matching this Envoy Gateway's controller string and
+// at has at least one managed Gateway, or false otherwise.
+func (r *gatewayReconciler) classHasMatchingController(obj client.Object) bool {
+	log := r.log.WithName(obj.GetName())
+
+	gc, ok := obj.(*gwapiv1b1.GatewayClass)
+	if !ok {
+		log.Info("bypassing reconciliation due to unexpected object type", "type", obj)
+		return false
+	}
+
+	if gc.Spec.ControllerName == r.classController {
+		// At least one managed gateway should exist.
+		gateways := &gwapiv1b1.GatewayList{}
+		if err := r.client.List(context.Background(), gateways); err != nil {
+			r.log.Error(err, "failed to list gateways")
+			return false
+		}
+		for i := range gateways.Items {
+			if gateways.Items[i].Spec.GatewayClassName == gwapiv1b1.ObjectName(gc.Name) {
+				log.Info("enqueueing gatewayclass")
+				return true
+			}
+		}
+		log.Info("no managed gateways; bypassing reconciliation")
+		return false
+	}
+
+	log.Info("bypassing reconciliation due to controller name", "controller", gc.Spec.ControllerName)
+	return false
+}
+
+// gatewayHasMatchingController returns true if the provided object is a Gateway
 // using a GatewayClass matching the configured gatewayclass controller name.
-func (r *gatewayReconciler) hasMatchingController(obj client.Object) bool {
+func (r *gatewayReconciler) gatewayHasMatchingController(obj client.Object) bool {
 	gw, ok := obj.(*gwapiv1b1.Gateway)
 	if !ok {
 		r.log.Info("unexpected object type, bypassing reconciliation", "object", obj)
@@ -110,6 +157,41 @@ func (r *gatewayReconciler) hasMatchingController(obj client.Object) bool {
 	}
 
 	return true
+}
+
+// getGatewaysForClass uses a GatewayClass obj to fetch Gateways, iterating
+// through them and creating a reconciliation request for each Gateway that
+// references obj.
+func (r *gatewayReconciler) getGatewaysForClass(obj client.Object) []reconcile.Request {
+	ctx := context.Background()
+
+	gc, ok := obj.(*gwapiv1b1.GatewayClass)
+	if !ok {
+		r.log.Info("unexpected object type, bypassing reconciliation", "object", obj)
+		return []reconcile.Request{}
+	}
+
+	gateways := &gwapiv1b1.GatewayList{}
+	if err := r.client.List(ctx, gateways); err != nil {
+		return []reconcile.Request{}
+	}
+
+	requests := []reconcile.Request{}
+	for i := range gateways.Items {
+		gw := gateways.Items[i]
+		if string(gw.Spec.GatewayClassName) == gc.Name {
+			req := reconcile.Request{
+				NamespacedName: types.NamespacedName{
+					Namespace: gw.Namespace,
+					Name:      gw.Name,
+				},
+			}
+			requests = append(requests, req)
+			break
+		}
+	}
+
+	return requests
 }
 
 // enqueueRequestForOwningGatewayClass returns an event handler that maps events with
