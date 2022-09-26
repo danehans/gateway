@@ -43,7 +43,7 @@ spec:
     spec:
       containers:
       - name: envoy-gateway-certgen
-        image: envoyproxy/gateway-dev:latest
+        image: docker.io/danehans/gateway-dev:97c65e1
         imagePullPolicy: Always
         command:
         - envoy-gateway
