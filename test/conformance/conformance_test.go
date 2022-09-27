@@ -38,7 +38,28 @@ func TestGatewayAPIConformance(t *testing.T) {
 		},
 	})
 	cSuite.Setup(t)
-	egTests := []suite.ConformanceTest{tests.HTTPRouteSimpleSameNamespace}
+	egTests := []suite.ConformanceTest{tests.HTTPRouteSimpleSameNamespace,
+		tests.HTTPRouteRequestHeaderModifier,
+		tests.HTTPRouteReferenceGrant,
+		tests.HTTPRouteQueryParamMatching,
+		// tests.HTTPRouteMatching,
+		// tests.HTTPRouteMatchingAcrossRoutes,
+		// tests.HTTPRouteListenerHostnameMatching,
+		tests.HTTPRouteInvalidReferenceGrant,
+		tests.HTTPRouteInvalidCrossNamespaceParentRef,
+		// tests.HTTPRouteInvalidCrossNamespaceBackendRef,
+		// tests.HTTPRouteInvalidBackendRefUnknownKind,
+		// tests.HTTPRouteInvalidNonExistentBackendRef,
+		// tests.HTTPRouteHostnameIntersection,
+		// tests.HTTPRouteHeaderMatching,
+		tests.HTTPExactPathMatching,
+		//tests.HTTPRouteDisallowedKind,
+		tests.HTTPRouteCrossNamespace,
+		tests.GatewaySecretReferenceGrantSpecific,
+		tests.GatewaySecretReferenceGrantAllInNamespace,
+		tests.GatewaySecretMissingReferenceGrant,
+		tests.GatewaySecretInvalidReferenceGrant,
+	}
 	cSuite.Run(t, egTests)
 
 }
