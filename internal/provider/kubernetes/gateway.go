@@ -144,8 +144,8 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, request reconcile.Req
 	r.log.Info("reconciling gateway", "namespace", request.Namespace, "name", request.Name)
 
 	// Once we've processed `allGateways`, record that we've fully initialized.
-	//defer r.InitGateways()
-	defer r.initializeOnce.Do(r.resources.GatewaysInitialized.Done)
+	defer r.InitGateways()
+	//defer r.initializeOnce.Do(r.resources.GatewaysInitialized.Done)
 
 	allClasses := &gwapiv1b1.GatewayClassList{}
 	if err := r.client.List(ctx, allClasses); err != nil {
@@ -236,10 +236,10 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, request reconcile.Req
 	return reconcile.Result{}, nil
 }
 
-/*func (r *gatewayReconciler) InitGateways() {
+func (r *gatewayReconciler) InitGateways() {
 	r.initializeOnce.Do(r.resources.GatewaysInitialized.Done)
 	r.log.Info("initialized gateways")
-}*/
+}
 
 // acceptedClass returns the GatewayClass from the provided list that matches
 // the configured controller name and contains the Accepted=true status condition.
