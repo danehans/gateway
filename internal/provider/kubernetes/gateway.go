@@ -144,7 +144,8 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, request reconcile.Req
 	r.log.Info("reconciling gateway", "namespace", request.Namespace, "name", request.Name)
 
 	// Once we've processed `allGateways`, record that we've fully initialized.
-	defer r.InitGateways()
+	//defer r.InitGateways()
+	defer r.initializeOnce.Do(r.resources.GatewaysInitialized.Done)
 
 	allClasses := &gwapiv1b1.GatewayClassList{}
 	if err := r.client.List(ctx, allClasses); err != nil {
@@ -186,22 +187,16 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, request reconcile.Req
 
 	found := false
 	for i := range acceptedGateways {
-		key := utils.NamespacedName(&acceptedGateways[i])
-		r.resources.Gateways.Store(key, &acceptedGateways[i])
-		r.log.Info("stored gateway in resource map", "namespace", key.Namespace, "name", key.Name)
+		gw := acceptedGateways[i]
+		key := utils.NamespacedName(&gw)
+
 		if key == request.NamespacedName {
 			found = true
 			r.log.Info("set found var")
 		}
-	}
-	if !found {
-		r.resources.Gateways.Delete(request.NamespacedName)
-		r.log.Info("deleted gateway from resource map")
-	}
 
-	// Set status conditions for all accepted gateways.
-	for i := range acceptedGateways {
-		gw := acceptedGateways[i]
+		r.resources.Gateways.Store(key, &gw)
+		r.log.Info("stored gateway in resource map", "namespace", key.Namespace, "name", key.Name)
 
 		// Get the status of the Gateway's associated Envoy Deployment.
 		deployment, err := r.envoyDeploymentForGateway(ctx, &gw)
@@ -227,9 +222,13 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, request reconcile.Req
 		r.log.Info("updated gateway status addresses")
 
 		// publish status
-		key := utils.NamespacedName(&gw)
 		r.resources.GatewayStatuses.Store(key, &gw)
 		r.log.Info("published gateway status")
+	}
+
+	if !found {
+		r.resources.Gateways.Delete(request.NamespacedName)
+		r.log.Info("deleted gateway from resource map")
 	}
 
 	r.log.WithName(request.Namespace).WithName(request.Name).Info("reconciled gateway")
@@ -237,10 +236,10 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, request reconcile.Req
 	return reconcile.Result{}, nil
 }
 
-func (r *gatewayReconciler) InitGateways() {
+/*func (r *gatewayReconciler) InitGateways() {
 	r.initializeOnce.Do(r.resources.GatewaysInitialized.Done)
 	r.log.Info("initialized gateways")
-}
+}*/
 
 // acceptedClass returns the GatewayClass from the provided list that matches
 // the configured controller name and contains the Accepted=true status condition.
