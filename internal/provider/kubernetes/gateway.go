@@ -144,7 +144,7 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, request reconcile.Req
 	r.log.Info("reconciling gateway", "namespace", request.Namespace, "name", request.Name)
 
 	// Once we've processed `allGateways`, record that we've fully initialized.
-	defer r.initializeOnce.Do(r.resources.GatewaysInitialized.Done)
+	defer r.InitGateways()
 
 	allClasses := &gwapiv1b1.GatewayClassList{}
 	if err := r.client.List(ctx, allClasses); err != nil {
@@ -165,6 +165,7 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, request reconcile.Req
 	if err := r.client.List(ctx, allGateways); err != nil {
 		return reconcile.Result{}, fmt.Errorf("error listing gateways")
 	}
+	r.log.Info("listed gateways")
 
 	// Get all the Gateways for the Accepted=true GatewayClass.
 	acceptedGateways := gatewaysOfClass(acceptedClass, allGateways)
@@ -187,12 +188,15 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, request reconcile.Req
 	for i := range acceptedGateways {
 		key := utils.NamespacedName(&acceptedGateways[i])
 		r.resources.Gateways.Store(key, &acceptedGateways[i])
+		r.log.Info("stored gateway in resource map", "namespace", key.Namespace, "name", key.Name)
 		if key == request.NamespacedName {
 			found = true
+			r.log.Info("set found var")
 		}
 	}
 	if !found {
 		r.resources.Gateways.Delete(request.NamespacedName)
+		r.log.Info("deleted gateway from resource map")
 	}
 
 	// Set status conditions for all accepted gateways.
@@ -205,6 +209,7 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, request reconcile.Req
 			r.log.Info("failed to get deployment for gateway",
 				"namespace", gw.Namespace, "name", gw.Name)
 		}
+		r.log.Info("got deployment for gateway")
 
 		// Get the status address of the Gateway's associated Envoy Service.
 		svc, err := r.envoyServiceForGateway(ctx, &gw)
@@ -212,19 +217,29 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, request reconcile.Req
 			r.log.Info("failed to get service for gateway",
 				"namespace", gw.Namespace, "name", gw.Name)
 		}
+		r.log.Info("got service for gateway")
 
 		// update scheduled condition
 		status.UpdateGatewayStatusScheduledCondition(&gw, true)
+		r.log.Info("updated gateway scheduled status condition")
 		// update address field and ready condition
 		status.UpdateGatewayStatusReadyCondition(&gw, svc, deployment)
+		r.log.Info("updated gateway status addresses")
+
 		// publish status
 		key := utils.NamespacedName(&gw)
 		r.resources.GatewayStatuses.Store(key, &gw)
+		r.log.Info("published gateway status")
 	}
 
 	r.log.WithName(request.Namespace).WithName(request.Name).Info("reconciled gateway")
 
 	return reconcile.Result{}, nil
+}
+
+func (r *gatewayReconciler) InitGateways() {
+	r.initializeOnce.Do(r.resources.GatewaysInitialized.Done)
+	r.log.Info("initialized gateways")
 }
 
 // acceptedClass returns the GatewayClass from the provided list that matches
