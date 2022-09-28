@@ -196,7 +196,7 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, request reconcile.Req
 		}
 
 		r.resources.Gateways.Store(key, &gw)
-		r.log.Info("stored gateway in resource map", "namespace", key.Namespace, "name", key.Name)
+		r.log.Info("stored gateway in resource map", "namespace", gw.Namespace, "name", gw.Name)
 
 		// Get the status of the Gateway's associated Envoy Deployment.
 		deployment, err := r.envoyDeploymentForGateway(ctx, &gw)
@@ -204,7 +204,11 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, request reconcile.Req
 			r.log.Info("failed to get deployment for gateway",
 				"namespace", gw.Namespace, "name", gw.Name)
 		}
-		r.log.Info("got deployment for gateway")
+		if deployment == nil {
+			r.log.Info("deployment for gateway doesn't exist", "gw_namespace", gw.Namespace, "gw_name", gw.Name)
+		} else {
+			r.log.Info("got deployment for gateway", "namespace", deployment.Namespace, "name", deployment.Name)
+		}
 
 		// Get the status address of the Gateway's associated Envoy Service.
 		svc, err := r.envoyServiceForGateway(ctx, &gw)
@@ -212,23 +216,27 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, request reconcile.Req
 			r.log.Info("failed to get service for gateway",
 				"namespace", gw.Namespace, "name", gw.Name)
 		}
-		r.log.Info("got service for gateway")
+		if svc == nil {
+			r.log.Info("service for gateway doesn't exist", "gw_namespace", gw.Namespace, "gw_name", gw.Name)
+		} else {
+			r.log.Info("got service for gateway", "namespace", svc.Namespace, "name", svc.Name)
+		}
 
 		// update scheduled condition
 		status.UpdateGatewayStatusScheduledCondition(&gw, true)
-		r.log.Info("updated gateway scheduled status condition")
+		r.log.Info("updated gateway scheduled status condition", "namespace", gw.Namespace, "name", gw.Name)
 		// update address field and ready condition
 		status.UpdateGatewayStatusReadyCondition(&gw, svc, deployment)
-		r.log.Info("updated gateway status addresses")
+		r.log.Info("updated gateway status addresses", "namespace", gw.Namespace, "name", gw.Name)
 
 		// publish status
 		r.resources.GatewayStatuses.Store(key, &gw)
-		r.log.Info("published gateway status")
+		r.log.Info("published gateway status", "namespace", gw.Namespace, "name", gw.Name)
 	}
 
 	if !found {
 		r.resources.Gateways.Delete(request.NamespacedName)
-		r.log.Info("deleted gateway from resource map")
+		r.log.Info("deleted gateway from resource map", "namespace", request.Namespace, "name", request.Name)
 	}
 
 	r.log.WithName(request.Namespace).WithName(request.Name).Info("reconciled gateway")
