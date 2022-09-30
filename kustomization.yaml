@@ -1,3 +1,4 @@
 resources:
   - release-artifacts/envoy-gateway.yaml
   - release-artifacts/infra-manager-rbac.yaml
+  - release-artifacts/quickstart.yaml

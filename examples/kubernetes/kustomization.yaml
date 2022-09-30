@@ -1,0 +1,5 @@
+resources:
+  - gatewayclass.yaml
+  - gateway.yaml
+  - httpbin.yaml
+  - httproute.yaml
