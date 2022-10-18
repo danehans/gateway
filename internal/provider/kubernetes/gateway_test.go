@@ -3,6 +3,7 @@ package kubernetes
 import (
 	"context"
 	"fmt"
+	"github.com/envoyproxy/gateway/internal/provider/utils"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -851,10 +852,13 @@ func TestSecretsAndRefGrantsForGateway(t *testing.T) {
 				objs = append(objs, &tc.refGrants[k])
 			}
 			r.client = fakeclient.NewClientBuilder().WithScheme(envoygateway.GetScheme()).WithObjects(objs...).Build()
-			secrets, refGrants, err := r.secretsAndRefGrantsForGateway(ctx, tc.gw)
+			refs, err := r.secretsAndRefGrantsForGateway(ctx, tc.gw)
 			require.NoError(t, err)
-			require.Equal(t, tc.secrets, secrets)
-			require.Equal(t, tc.refGrants, refGrants)
+			for i := range tc.secrets {
+				secret := tc.secrets[i]
+				require.Equal(t, secret, *refs.referencedSecrets[utils.NamespacedName(&secret)])
+			}
+			//require.Equal(t, tc.refGrants, refGrants)
 		})
 	}
 }
