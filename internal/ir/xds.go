@@ -125,6 +125,10 @@ type HTTPListener struct {
 	Routes []*HTTPRoute
 	// IsHTTP2 is set if the upstream client as well as the downstream server are configured to serve HTTP2 traffic.
 	IsHTTP2 bool
+	// Filters are filters to apply to the HTTP listener.
+	//
+	// +optional
+	Filters []Filter
 }
 
 // Validate the fields within the HTTPListener structure
@@ -526,4 +530,91 @@ func (h UDPListener) Validate() error {
 		}
 	}
 	return errs
+}
+
+// Filter defines the schema for an HTTP filter configuration.
+// +k8s:deepcopy-gen=true
+type Filter struct {
+	// Jwt defines the JWT authentication filter.
+	//
+	// +optional
+	Jwt *JwtFilter
+}
+
+// JwtFilter defines the schema for the JWT authentication filter.
+// +k8s:deepcopy-gen=true
+type JwtFilter struct {
+	// Name of the JWT authentication filter.
+	Name string
+	// Providers stores the configuration rules of a JWT provider.
+	Providers map[string]JWTRule
+}
+
+// JWTRule defines a JWT authentication rule.
+// +k8s:deepcopy-gen=true
+type JWTRule struct {
+	// Identifies the issuer that issued the JWT.
+	//
+	// +optional
+	Issuer string
+	// The list of JWT audiences that are allowed to access. A JWT containing
+	// any of these audiences will be accepted.
+	//
+	// +optional
+	Audiences []string
+	// The remote JWKS used to authenticate a JWT.
+	//
+	// +optional
+	RemoteJwks *RemoteJwks
+}
+
+// RemoteJwks defines a remote JWKS.
+// +k8s:deepcopy-gen=true
+type RemoteJwks struct {
+	// The JWKS URI to validate the JWT signature.
+	Uri string
+	// Cluster is the cluster name of the JWKS endpoint(s).
+	//
+	Cluster string
+}
+
+func (j *JWTRule) GetIssuer() string {
+	if j != nil {
+		return j.Issuer
+	}
+	return ""
+}
+
+func (j *JWTRule) GetAudiences() []string {
+	if j != nil {
+		return j.Audiences
+	}
+	return nil
+}
+
+func (j *JWTRule) GetRemoteJwks() *RemoteJwks {
+	if j != nil {
+		return j.RemoteJwks
+	}
+	return nil
+}
+
+func (r *RemoteJwks) JwksUri() string {
+	if r == nil {
+		return ""
+	}
+	if len(r.Uri) > 0 {
+		return r.Uri
+	}
+	return ""
+}
+
+func (r *RemoteJwks) JwksCluster() string {
+	if r == nil {
+		return ""
+	}
+	if len(r.Cluster) > 0 {
+		return r.Cluster
+	}
+	return ""
 }

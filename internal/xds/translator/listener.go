@@ -7,12 +7,13 @@ package translator
 
 import (
 	"errors"
-
+	"fmt"
 	xdscore "github.com/cncf/xds/go/xds/core/v3"
 	matcher "github.com/cncf/xds/go/xds/type/matcher/v3"
 	accesslog "github.com/envoyproxy/go-control-plane/envoy/config/accesslog/v3"
 	core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	listener "github.com/envoyproxy/go-control-plane/envoy/config/listener/v3"
+	jwt "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/http/jwt_authn/v3"
 	router "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/http/router/v3"
 	tls_inspector "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/listener/tls_inspector/v3"
 	hcm "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/network/http_connection_manager/v3"
@@ -21,8 +22,15 @@ import (
 	tls "github.com/envoyproxy/go-control-plane/envoy/extensions/transport_sockets/tls/v3"
 	"github.com/envoyproxy/go-control-plane/pkg/wellknown"
 	"google.golang.org/protobuf/types/known/anypb"
+	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/envoyproxy/gateway/internal/ir"
+)
+
+const (
+	// envoyJwtFilterName is the name of the Envoy JWT filter.
+	envoyJwtFilterName = "envoy.filters.http.jwt_authn"
 )
 
 func buildXdsTCPListener(name, address string, port uint32) *listener.Listener {
@@ -362,4 +370,152 @@ func buildXdsUDPListener(clusterName string, udpListener *ir.UDPListener) (*list
 	}
 
 	return xdsListener, nil
+}
+
+// JwtFilter creates a JWT authentication HTTP filter.
+func JwtFilter(jwtRules []*ir.JWTRule) *hcm.HttpFilter {
+	if len(jwtRules) == 0 {
+		return nil
+	}
+
+	jwtCfgProto := convertToEnvoyJwtConfig(jwtRules)
+
+	if jwtCfgProto == nil {
+		return nil
+	}
+
+	jwtCfgAny, _ := anypb.New(jwtCfgProto)
+
+	return &hcm.HttpFilter{
+		Name:       envoyJwtFilterName,
+		ConfigType: &hcm.HttpFilter_TypedConfig{TypedConfig: jwtCfgAny},
+	}
+}
+
+// toJwtFilterConfig converts a list of JWT rules into an Envoy JWT filter config.
+// Each rule is expected corresponding to one JWT provider. The filter rejects all
+// requests with an invalid token. If no token is provided, the request is permitted.
+func convertToEnvoyJwtConfig(rules []*ir.JWTRule) *jwt.JwtAuthentication {
+	if len(rules) == 0 {
+		return nil
+	}
+
+	providers := map[string]*jwt.JwtProvider{}
+	// Each element of innerAndList is the requirement for each provider, in the form of
+	// {provider OR `allow_missing`}
+	// This list will be ANDed (if have more than one provider) for the final requirement.
+	innerAndList := []*jwt.JwtRequirement{}
+
+	// This is an (or) list for all providers. This will be OR with the innerAndList above so
+	// it can pass the requirement in the case that providers share the same location.
+	outterOrList := []*jwt.JwtRequirement{}
+
+	for i, rule := range rules {
+		provider := &jwt.JwtProvider{
+			Issuer:            rule.Issuer,
+			Audiences:         rule.Audiences,
+			PayloadInMetadata: rule.Issuer,
+		}
+
+		if rule.RemoteJwks != nil {
+			// This is a case of URI pointing to mesh cluster. Setup Remote RemoteJwks and let Envoy fetch the key.
+			provider.JwksSourceSpecifier = &jwt.JwtProvider_RemoteJwks{
+				RemoteJwks: &jwt.RemoteJwks{
+					HttpUri: &core.HttpUri{
+						Uri: rule.RemoteJwks.Uri,
+						HttpUpstreamType: &core.HttpUri_Cluster{
+							Cluster: rule.RemoteJwks.Cluster,
+						},
+						Timeout: &durationpb.Duration{Seconds: 5},
+					},
+					CacheDuration: &durationpb.Duration{Seconds: 5 * 60},
+				},
+			}
+			} else {
+				provider.JwksSourceSpecifier = jwtKeyVerifier.BuildLocalJwks(rule.GetRemoteJwks(), rule.Issuer, "")
+			}
+		}
+
+		name := fmt.Sprintf("origins-%d", i)
+		providers[name] = provider
+		innerAndList = append(innerAndList, &jwt.JwtRequirement{
+			RequiresType: &jwt.JwtRequirement_RequiresAny{
+				RequiresAny: &jwt.JwtRequirementOrList{
+					Requirements: []*jwt.JwtRequirement{
+						{
+							RequiresType: &jwt.JwtRequirement_ProviderName{
+								ProviderName: name,
+							},
+						},
+						{
+							RequiresType: &jwt.JwtRequirement_AllowMissing{
+								AllowMissing: &emptypb.Empty{},
+							},
+						},
+					},
+				},
+			},
+		})
+		outterOrList = append(outterOrList, &jwt.JwtRequirement{
+			RequiresType: &jwt.JwtRequirement_ProviderName{
+				ProviderName: name,
+			},
+		})
+	}
+
+	// If there is only one provider, simply use an OR of {provider, `allow_missing`}.
+	if len(innerAndList) == 1 {
+		return &jwt.JwtAuthentication{
+			Rules: []*jwt.RequirementRule{
+				{
+					Match: &route.RouteMatch{
+						PathSpecifier: &route.RouteMatch_Prefix{
+							Prefix: "/",
+						},
+					},
+					RequirementType: &jwt.RequirementRule_Requires{
+						Requires: innerAndList[0],
+					},
+				},
+			},
+			Providers:           providers,
+			BypassCorsPreflight: true,
+		}
+	}
+
+	// If there are more than one provider, filter should OR of
+	// {P1, P2 .., AND of {OR{P1, allow_missing}, OR{P2, allow_missing} ...}}
+	// where the innerAnd enforce a token, if provided, must be valid, and the
+	// outer OR aids the case where providers share the same location (as
+	// it will always fail with the innerAND).
+	outterOrList = append(outterOrList, &jwt.JwtRequirement{
+		RequiresType: &jwt.JwtRequirement_RequiresAll{
+			RequiresAll: &jwt.JwtRequirementAndList{
+				Requirements: innerAndList,
+			},
+		},
+	})
+
+	return &jwt.JwtAuthentication{
+		Rules: []*jwt.RequirementRule{
+			{
+				Match: &route.RouteMatch{
+					PathSpecifier: &route.RouteMatch_Prefix{
+						Prefix: "/",
+					},
+				},
+				RequirementType: &jwt.RequirementRule_Requires{
+					Requires: &jwt.JwtRequirement{
+						RequiresType: &jwt.JwtRequirement_RequiresAny{
+							RequiresAny: &jwt.JwtRequirementOrList{
+								Requirements: outterOrList,
+							},
+						},
+					},
+				},
+			},
+		},
+		Providers:           providers,
+		BypassCorsPreflight: true,
+	}
 }
