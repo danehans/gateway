@@ -13,11 +13,6 @@ ifeq ($(origin KUBE_PROVIDER_DIR),undefined)
 KUBE_PROVIDER_DIR := $(ROOT_DIR)/internal/provider/kubernetes/config
 endif
 
-# Set Infra Resources Directory Path
-ifeq ($(origin KUBE_INFRA_DIR),undefined)
-KUBE_INFRA_DIR := $(ROOT_DIR)/internal/infrastructure/kubernetes/config
-endif
-
 ##@ Kubernetes Development
 YEAR := $(shell date +%Y)
 CONTROLLERGEN_OBJECT_FLAGS :=  object:headerFile="$(ROOT_DIR)/tools/boilerplate/boilerplate.generatego.txt",year=$(YEAR)
@@ -109,14 +104,10 @@ generate-manifests: $(tools/kustomize) ## Generate Kubernetes release manifests.
 	@$(call log, "Added: $(OUTPUT_DIR)/gatewayapi-crds.yaml")
 	mkdir -pv $(OUTPUT_DIR)/manifests/provider
 	cp -r $(KUBE_PROVIDER_DIR) $(OUTPUT_DIR)/manifests/provider
-	mkdir -pv $(OUTPUT_DIR)/manifests/infra
-	cp -r $(KUBE_INFRA_DIR) $(OUTPUT_DIR)/manifests/infra
 	cd $(OUTPUT_DIR)/manifests/provider/config/envoy-gateway && $(ROOT_DIR)/$(tools/kustomize) edit set image envoyproxy/gateway-dev=$(IMAGE):$(TAG)
 	$(tools/kustomize) build $(OUTPUT_DIR)/manifests/provider/config/default > $(OUTPUT_DIR)/envoy-gateway.yaml
-	$(tools/kustomize) build $(OUTPUT_DIR)/manifests/infra/config/rbac > $(OUTPUT_DIR)/infra-manager-rbac.yaml
 	touch $(OUTPUT_DIR)/kustomization.yaml
 	cd $(OUTPUT_DIR) && $(ROOT_DIR)/$(tools/kustomize) edit add resource ./envoy-gateway.yaml
-	cd $(OUTPUT_DIR) && $(ROOT_DIR)/$(tools/kustomize) edit add resource ./infra-manager-rbac.yaml
 	cd $(OUTPUT_DIR) && $(ROOT_DIR)/$(tools/kustomize) edit add resource ./gatewayapi-crds.yaml
 	$(tools/kustomize) build $(OUTPUT_DIR) > $(OUTPUT_DIR)/install.yaml
 	@$(call log, "Added: $(OUTPUT_DIR)/install.yaml")

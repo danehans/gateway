@@ -2,13 +2,13 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: infra-manager
-  namespace: envoy-gateway-system
 rules:
   - apiGroups:
       - ""
     resources:
       - serviceaccounts
       - services
+      - configmaps
     verbs:
       - create
       - get

@@ -1,15 +1,7 @@
-apiVersion: v1
-kind: Namespace
-metadata:
-  labels:
-    control-plane: envoy-gateway
-  name: system
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: envoy-gateway
-  namespace: envoy-gateway-system
   labels:
     control-plane: envoy-gateway
 spec:
@@ -28,8 +20,8 @@ spec:
         runAsNonRoot: true
       containers:
         - name: envoy-gateway
-          image: envoyproxy/gateway-dev:latest
-          imagePullPolicy: Always
+          image: docker.io/envoyproxy/gateway-dev:c46ae86
+          imagePullPolicy: IfNotPresent
           securityContext:
             allowPrivilegeEscalation: false
           env:

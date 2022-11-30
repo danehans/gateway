@@ -37,7 +37,7 @@ if ! kind::cluster::exists "$CLUSTER_NAME" ; then
     exit 2
 fi
 
-files=(internal/provider/kubernetes/config/envoy-gateway/deploy_and_ns.yaml internal/provider/kubernetes/config/envoy-gateway/certgen-job.yaml)
+files=(internal/provider/kubernetes/config/envoy-gateway/deployment.yaml internal/provider/kubernetes/config/envoy-gateway/certgen-job.yaml)
 
 # Update the image pull policy in the Envoy Gateway deployment manifest so
 # the image is served by the kind cluster.

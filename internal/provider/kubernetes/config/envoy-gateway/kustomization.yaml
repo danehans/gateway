@@ -1,6 +1,7 @@
 resources:
+- namespace.yaml
 - certgen-job.yaml
-- deploy_and_ns.yaml
+- deployment.yaml
 - service.yaml
 
 generatorOptions:
