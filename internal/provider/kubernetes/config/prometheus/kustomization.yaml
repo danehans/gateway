@@ -1,2 +1,5 @@
+# Adds namespace to defined resources.
+namespace: envoy-gateway-system
+
 resources:
 - monitor.yaml

@@ -6,7 +6,7 @@ This guide will help you get started with Envoy Gateway in a few simple steps.
 
 A Kubernetes cluster.
 
-__Note:__ Envoy Gateway is tested against Kubernetes v1.24.0.
+__Note:__ Refer to the compatability matrix for supported Kubernetes versions.
 
 ## Installation
 
@@ -16,7 +16,13 @@ Install the Gateway API CRDs and Envoy Gateway:
 kubectl apply -f https://github.com/envoyproxy/gateway/releases/download/latest/install.yaml
 ```
 
-Install the GatewayClass, Gateway, HTTPRoute and example app:
+Wait for the GatewayClass managed by Envoy Gateway to be accepted:
+
+```shell
+kubectl wait --timeout=5m -n envoy-gateway-system gatewayclass/envoy-gateway --for=condition=Accepted
+```
+
+Install the Gateway, HTTPRoute, and example app:
 
 ```shell
 kubectl apply -f https://github.com/envoyproxy/gateway/releases/download/latest/quickstart.yaml
@@ -27,7 +33,7 @@ kubectl apply -f https://github.com/envoyproxy/gateway/releases/download/latest/
 Get the name of the Envoy service created the by the example Gateway:
 
 ```shell
-export ENVOY_SERVICE=$(kubectl get svc -n envoy-gateway-system --selector=gateway.envoyproxy.io/owning-gateway-namespace=default,gateway.envoyproxy.io/owning-gateway-name=eg -o jsonpath='{.items[0].metadata.name}')
+export ENVOY_SERVICE=$(kubectl get svc -n envoy-gateway-system --selector=gateway.envoyproxy.io/owning-gateway-namespace=default,gateway.envoyproxy.io/owning-gateway-name=envoy -o jsonpath='{.items[0].metadata.name}')
 ```
 
 Port forward to the Envoy service:

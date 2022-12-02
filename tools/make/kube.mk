@@ -93,7 +93,7 @@ run-conformance: ## Run Gateway API conformance.
 	kubectl wait --timeout=5m -n gateway-system deployment/gateway-api-admission-server --for=condition=Available
 	kubectl wait --timeout=5m -n envoy-gateway-system deployment/envoy-gateway --for=condition=Available
 	kubectl wait --timeout=5m -n gateway-system job/gateway-api-admission --for=condition=Complete
-	kubectl apply -f internal/provider/kubernetes/config/samples/gatewayclass.yaml
+	kubectl apply -f internal/provider/kubernetes/config/gateway-api/gatewayclass.yaml
 	go test -v -tags conformance ./test/conformance --gateway-class=envoy-gateway --debug=true --use-unique-ports=$(CONFORMANCE_UNIQUE_PORTS)
 
 .PHONY: delete-cluster
@@ -116,9 +116,9 @@ generate-manifests: $(tools/kustomize) ## Generate Kubernetes release manifests.
 	$(tools/kustomize) build $(OUTPUT_DIR)/manifests/provider/config/default > $(OUTPUT_DIR)/envoy-gateway.yaml
 	$(tools/kustomize) build $(OUTPUT_DIR)/manifests/infra/config/rbac > $(OUTPUT_DIR)/infra-manager-rbac.yaml
 	touch $(OUTPUT_DIR)/kustomization.yaml
-	cd $(OUTPUT_DIR) && $(ROOT_DIR)/$(tools/kustomize) edit add resource ./envoy-gateway.yaml
-	cd $(OUTPUT_DIR) && $(ROOT_DIR)/$(tools/kustomize) edit add resource ./infra-manager-rbac.yaml
 	cd $(OUTPUT_DIR) && $(ROOT_DIR)/$(tools/kustomize) edit add resource ./gatewayapi-crds.yaml
+	#cd $(OUTPUT_DIR) && $(ROOT_DIR)/$(tools/kustomize) edit add resource ./envoy-gateway.yaml
+	#cd $(OUTPUT_DIR) && $(ROOT_DIR)/$(tools/kustomize) edit add resource ./infra-manager-rbac.yaml
 	$(tools/kustomize) build $(OUTPUT_DIR) > $(OUTPUT_DIR)/install.yaml
 	@$(call log, "Added: $(OUTPUT_DIR)/install.yaml")
 	cp examples/kubernetes/quickstart.yaml $(OUTPUT_DIR)/quickstart.yaml

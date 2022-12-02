@@ -1,3 +1,6 @@
+# Adds namespace to defined resources.
+namespace: envoy-gateway-system
+
 resources:
 - certgen-job.yaml
 - deploy_and_ns.yaml
