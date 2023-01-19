@@ -66,12 +66,17 @@ type JwtAuthenticationFilterProvider struct {
 	// +kubebuilder:validation:MaxLength=253
 	Name string `json:"name"`
 
-	// Issuer is the principal that issued the JWT.	For additional details, see:
+	// Issuer is the principal that issued the JWT and takes the form of a URL or email address.
+	// For additional details, see:
 	//
-	//   https://tools.ietf.org/html/rfc7519#section-4.1.1
+	//   URL format: https://tools.ietf.org/html/rfc7519#section-4.1.1
+	//   Email format: https://rfc-editor.org/rfc/rfc5322.html
 	//
-	// Example:
+	// URL Example:
 	//  issuer: https://auth.example.com
+	//
+	// Email Example:
+	//  issuer: jdoe@example.com
 	//
 	// If not provided, the JWT issuer is not checked.
 	//

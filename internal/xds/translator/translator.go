@@ -121,7 +121,8 @@ func processHTTPListenerXdsTranslation(tCtx *types.ResourceVersionTable, httpLis
 
 		xdsRouteCfg.VirtualHosts = append(xdsRouteCfg.VirtualHosts, vHost)
 
-		// TODO: Make this into a generic interface for API Gateway features
+		// TODO: Make this into a generic interface for API Gateway features.
+		//       https://github.com/envoyproxy/gateway/issues/882
 		// Check if a ratelimit cluster exists, if not, add it, if its needed.
 		// This is current O(n) right now, but it also leverages an existing
 		// object without allocating new memory. Consider improving it in the future.
@@ -130,6 +131,26 @@ func processHTTPListenerXdsTranslation(tCtx *types.ResourceVersionTable, httpLis
 			// Add cluster
 			if rlCluster != nil {
 				tCtx.AddXdsResource(resource.ClusterType, rlCluster)
+			}
+		}
+
+		for _, route := range httpListener.Routes {
+			if isJwtAuthnPresent(route) {
+				for i := range route.RequestAuthentication.JWT.Providers {
+					provider := route.RequestAuthentication.JWT.Providers[i]
+					jwks, err := newJwksCluster(&provider)
+					if err != nil {
+						return err
+					}
+					if existingCluster := findXdsCluster(tCtx, jwks.name); existingCluster == nil {
+						cluster, buildErr := buildClusterFromJwks(jwks)
+						if buildErr != nil {
+							return buildErr
+						}
+						// Add the JWKS cluster.
+						tCtx.AddXdsResource(resource.ClusterType, cluster)
+					}
+				}
 			}
 		}
 	}
