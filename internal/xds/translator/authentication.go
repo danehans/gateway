@@ -80,7 +80,7 @@ func isJwtAuthnPresent(irRoute *ir.HTTPRoute) bool {
 // buildJwtAuthn returns a JwtAuthentication based on the provided IR HTTPRoute.
 func buildJwtAuthn(irRoute *ir.HTTPRoute) (*jwtext.JwtAuthentication, error) {
 	providers := map[string]*jwtext.JwtProvider{}
-	var reqs []*jwtext.JwtRequirement
+	reqs := make(map[string]*jwtext.JwtRequirement)
 
 	for i := range irRoute.RequestAuthentication.JWT.Providers {
 		irProvider := irRoute.RequestAuthentication.JWT.Providers[i]
@@ -111,28 +111,16 @@ func buildJwtAuthn(irRoute *ir.HTTPRoute) (*jwtext.JwtAuthentication, error) {
 
 		providers[irProvider.Name] = provider
 
-		reqs = append(reqs, &jwtext.JwtRequirement{
+		reqs[irProvider.Name] = &jwtext.JwtRequirement{
 			RequiresType: &jwtext.JwtRequirement_ProviderName{
 				ProviderName: irProvider.Name,
 			},
-		})
+		}
 	}
 
 	return &jwtext.JwtAuthentication{
-		Rules: []*jwtext.RequirementRule{
-			{
-				RequirementType: &jwtext.RequirementRule_Requires{
-					Requires: &jwtext.JwtRequirement{
-						RequiresType: &jwtext.JwtRequirement_RequiresAny{
-							RequiresAny: &jwtext.JwtRequirementOrList{
-								Requirements: reqs,
-							},
-						},
-					},
-				},
-			},
-		},
-		Providers: providers,
+		RequirementMap: reqs,
+		Providers:      providers,
 	}, nil
 }
 

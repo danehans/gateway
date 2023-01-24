@@ -23,8 +23,6 @@
                   cluster: "127_0_0_1_80"
                   timeout: 5s
                   uri: http://127.0.0.1/jwt/public-key/jwks.json
-          rules:
-          - requires:
-              requiresAny:
-                requirements:
-                - providerName: example
+          requirementMap:
+            example:
+              providerName: example
