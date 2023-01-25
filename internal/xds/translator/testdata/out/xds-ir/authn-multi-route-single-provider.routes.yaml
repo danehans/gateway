@@ -8,47 +8,7 @@
         path: foo/bar
       route:
         cluster: first-route
-      typedPerFilterConfig:
-        envoy.filters.http.jwt_authn:
-          '@type': type.googleapis.com/envoy.extensions.filters.http.jwt_authn.v3.JwtAuthentication
-          providers:
-            example:
-              audiences:
-              - foo.com
-              issuer: https://www.example.com
-              payloadInMetadata: https://www.example.com
-              remoteJwks:
-                cacheDuration: 300s
-                httpUri:
-                  cluster: "127_0_0_1_80"
-                  timeout: 5s
-                  uri: http://127.0.0.1/jwt/public-key/jwks.json
-          rules:
-          - requires:
-              requiresAny:
-                requirements:
-                - providerName: example
     - match:
         path: foo/baz
       route:
         cluster: second-route
-      typedPerFilterConfig:
-        envoy.filters.http.jwt_authn:
-          '@type': type.googleapis.com/envoy.extensions.filters.http.jwt_authn.v3.JwtAuthentication
-          providers:
-            example:
-              audiences:
-              - foo.com
-              issuer: https://www.example.com
-              payloadInMetadata: https://www.example.com
-              remoteJwks:
-                cacheDuration: 300s
-                httpUri:
-                  cluster: "127_0_0_1_80"
-                  timeout: 5s
-                  uri: http://127.0.0.1/jwt/public-key/jwks.json
-          rules:
-          - requires:
-              requiresAny:
-                requirements:
-                - providerName: example

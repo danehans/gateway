@@ -49,7 +49,7 @@ const (
 	// envoyAdminPort is the port used to expose admin interface.
 	envoyAdminPort = 19000
 	// envoyAdminAccessLogPath is the path used to expose admin access log.
-	envoyAdminAccessLogPath = "/dev/null"
+	envoyAdminAccessLogPath = "/dev/stdout"
 )
 
 //go:embed bootstrap.yaml.tpl
@@ -233,7 +233,7 @@ func expectedContainers(infra *ir.Infra) ([]corev1.Container, error) {
 				fmt.Sprintf("--service-cluster %s", infra.Proxy.Name),
 				fmt.Sprintf("--service-node $(%s)", envoyPodEnvVar),
 				fmt.Sprintf("--config-yaml %s", cfg.rendered),
-				"--log-level info",
+				"--log-level debug",
 			},
 			Env: []corev1.EnvVar{
 				{

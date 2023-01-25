@@ -19,6 +19,11 @@ import (
 	endpoint "github.com/envoyproxy/go-control-plane/envoy/config/endpoint/v3"
 	routev3 "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
 	jwtext "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/http/jwt_authn/v3"
+	hcm "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/network/http_connection_manager/v3"
+	tls "github.com/envoyproxy/go-control-plane/envoy/extensions/transport_sockets/tls/v3"
+	"github.com/envoyproxy/go-control-plane/pkg/wellknown"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/durationpb"
 
@@ -28,62 +33,74 @@ import (
 
 const jwtAuthenFilter = "envoy.filters.http.jwt_authn"
 
-// patchRouteWithFilterConfig patches the provided xDS route with a TypedPerFilterConfig, if needed.
-// The following TypedPerFilterConfigs are supported:
-//   - jwtAuthenFilter
-func patchRouteWithFilterConfig(route *routev3.Route, irRoute *ir.HTTPRoute) error { //nolint:unparam
-	if route == nil {
-		return errors.New("xds route is nil")
-	}
-	if irRoute == nil {
-		return errors.New("ir route is nil")
+// patchHCMWithJwtAuthnFilter builds and appends the Jwt Filter to the HTTP
+// connection manager if applicable, and it does not already exist.
+func patchHCMWithJwtAuthnFilter(mgr *hcm.HttpConnectionManager, irListener *ir.HTTPListener) error {
+	if mgr == nil {
+		return errors.New("hcm is nil")
 	}
 
-	cfg := route.GetTypedPerFilterConfig()
-	if _, ok := cfg[jwtAuthenFilter]; !ok {
-		if !isJwtAuthnPresent(irRoute) {
+	if irListener == nil {
+		return errors.New("ir listener is nil")
+	}
+
+	if !listenerContainsJwtAuthn(irListener) {
+		return nil
+	}
+
+	// Return early if filter already exists.
+	for _, httpFilter := range mgr.HttpFilters {
+		if httpFilter.Name == jwtAuthenFilter {
 			return nil
 		}
-
-		jwtAuthn, err := buildJwtAuthn(irRoute)
-		if err != nil {
-			return err
-		}
-
-		jwtFilterProto, err := anypb.New(jwtAuthn)
-		if err != nil {
-			return err
-		}
-
-		if cfg == nil {
-			route.TypedPerFilterConfig = make(map[string]*anypb.Any)
-		}
-
-		route.TypedPerFilterConfig[jwtAuthenFilter] = jwtFilterProto
 	}
+
+	jwtFilter, err := buildJwtAuthnFilter(irListener)
+	if err != nil {
+		return err
+	}
+
+	// Make sure the router filter is the terminal filter in the chain
+	mgr.HttpFilters = append([]*hcm.HttpFilter{jwtFilter}, mgr.HttpFilters...)
 
 	return nil
 }
 
-// isJwtAuthnPresent returns true if JWT authentication exists for the provided IR HTTPRoute.
-func isJwtAuthnPresent(irRoute *ir.HTTPRoute) bool {
-	if irRoute != nil &&
-		irRoute.RequestAuthentication != nil &&
-		irRoute.RequestAuthentication.JWT != nil &&
-		len(irRoute.RequestAuthentication.JWT.Providers) > 0 {
-		return true
+func buildJwtAuthnFilter(irListener *ir.HTTPListener) (*hcm.HttpFilter, error) {
+	jwtAuthnProto, err := buildJwtAuthn(irListener)
+	if err != nil {
+		return nil, err
 	}
 
-	return false
+	if err := jwtAuthnProto.ValidateAll(); err != nil {
+		return nil, err
+	}
+
+	jwtAuthnFilterAny, err := anypb.New(jwtAuthnProto)
+	if err != nil {
+		return nil, err
+	}
+
+	return &hcm.HttpFilter{
+		Name: jwtAuthenFilter,
+		ConfigType: &hcm.HttpFilter_TypedConfig{
+			TypedConfig: jwtAuthnFilterAny,
+		},
+	}, nil
 }
 
 // buildJwtAuthn returns a JwtAuthentication based on the provided IR HTTPRoute.
-func buildJwtAuthn(irRoute *ir.HTTPRoute) (*jwtext.JwtAuthentication, error) {
-	providers := map[string]*jwtext.JwtProvider{}
-	reqs := make(map[string]*jwtext.JwtRequirement)
+func buildJwtAuthn(irListener *ir.HTTPListener) (*jwtext.JwtAuthentication, error) {
+	jwtProviders := make(map[string]*jwtext.JwtProvider)
+	var reqs []*jwtext.JwtRequirement
 
-	for i := range irRoute.RequestAuthentication.JWT.Providers {
-		irProvider := irRoute.RequestAuthentication.JWT.Providers[i]
+	irProviders := uniqueJwtAuthnProviders(irListener)
+
+	if len(irProviders) == 0 {
+		return nil, fmt.Errorf("listener %s contains no jwt authn providers", irListener.Name)
+	}
+
+	for _, irProvider := range irProviders {
 		cluster, err := newJwksCluster(&irProvider)
 		if err != nil {
 			return nil, err
@@ -109,18 +126,53 @@ func buildJwtAuthn(irRoute *ir.HTTPRoute) (*jwtext.JwtAuthentication, error) {
 			PayloadInMetadata:   irProvider.Issuer,
 		}
 
-		providers[irProvider.Name] = provider
+		jwtProviders[irProvider.Name] = provider
 
-		reqs[irProvider.Name] = &jwtext.JwtRequirement{
+		reqs = append(reqs, &jwtext.JwtRequirement{
 			RequiresType: &jwtext.JwtRequirement_ProviderName{
 				ProviderName: irProvider.Name,
 			},
-		}
+		})
+	}
+
+	if len(irProviders) == 1 {
+		return &jwtext.JwtAuthentication{
+			Rules: []*jwtext.RequirementRule{
+				{
+					Match: &routev3.RouteMatch{
+						PathSpecifier: &routev3.RouteMatch_Prefix{
+							Prefix: "/",
+						},
+					},
+					RequirementType: &jwtext.RequirementRule_Requires{
+						Requires: reqs[0],
+					},
+				},
+			},
+			Providers: jwtProviders,
+		}, nil
 	}
 
 	return &jwtext.JwtAuthentication{
-		RequirementMap: reqs,
-		Providers:      providers,
+		Rules: []*jwtext.RequirementRule{
+			{
+				Match: &routev3.RouteMatch{
+					PathSpecifier: &routev3.RouteMatch_Prefix{
+						Prefix: "/",
+					},
+				},
+				RequirementType: &jwtext.RequirementRule_Requires{
+					Requires: &jwtext.JwtRequirement{
+						RequiresType: &jwtext.JwtRequirement_RequiresAny{
+							RequiresAny: &jwtext.JwtRequirementOrList{
+								Requirements: reqs,
+							},
+						},
+					},
+				},
+			},
+		},
+		Providers: jwtProviders,
 	}, nil
 }
 
@@ -135,9 +187,14 @@ func buildClusterFromJwks(jwks *jwksCluster) (*cluster.Cluster, error) {
 		return nil, err
 	}
 
+	tSocket, err := buildXdsUpstreamTLSSocket()
+	if err != nil {
+		return nil, err
+	}
+
 	return &cluster.Cluster{
 		Name:                 jwks.name,
-		ClusterDiscoveryType: &cluster.Cluster_Type{Type: cluster.Cluster_STRICT_DNS},
+		ClusterDiscoveryType: &cluster.Cluster_Type{Type: cluster.Cluster_STATIC},
 		ConnectTimeout:       durationpb.New(10 * time.Second),
 		LbPolicy:             cluster.Cluster_RANDOM,
 		LoadAssignment: &endpoint.ClusterLoadAssignment{
@@ -152,6 +209,35 @@ func buildClusterFromJwks(jwks *jwksCluster) (*cluster.Cluster, error) {
 		DnsRefreshRate:       durationpb.New(30 * time.Second),
 		RespectDnsTtl:        true,
 		DnsLookupFamily:      cluster.Cluster_V4_ONLY,
+		TransportSocket:      tSocket,
+	}, nil
+}
+
+func buildXdsUpstreamTLSSocket() (*core.TransportSocket, error) {
+	tlsCtx := &tls.UpstreamTlsContext{
+		CommonTlsContext: &tls.CommonTlsContext{
+			ValidationContextType: &tls.CommonTlsContext_ValidationContext{
+				ValidationContext: &tls.CertificateValidationContext{
+					TrustedCa: &core.DataSource{
+						Specifier: &core.DataSource_Filename{
+							Filename: "/etc/ssl/certs/ca-certificates.crt",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	tlsCtxAny, err := anypb.New(tlsCtx)
+	if err != nil {
+		return nil, err
+	}
+
+	return &core.TransportSocket{
+		Name: wellknown.TransportSocketTls,
+		ConfigType: &core.TransportSocket_TypedConfig{
+			TypedConfig: tlsCtxAny,
+		},
 	}, nil
 }
 
@@ -263,4 +349,75 @@ func resolveHostname(hostname string) ([]string, error) {
 	}
 
 	return ret, nil
+}
+
+// listenerContainsJwtAuthn returns true if JWT authentication exists for the
+// provided listener.
+func listenerContainsJwtAuthn(irListener *ir.HTTPListener) bool {
+	if irListener == nil {
+		return false
+	}
+
+	for _, route := range irListener.Routes {
+		if routeContainsJwtAuthn(route) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// routeContainsJwtAuthn returns true if JWT authentication exists for the
+// provided route.
+func routeContainsJwtAuthn(irRoute *ir.HTTPRoute) bool {
+	if irRoute == nil {
+		return false
+	}
+
+	if irRoute != nil &&
+		irRoute.RequestAuthentication != nil &&
+		irRoute.RequestAuthentication.JWT != nil &&
+		len(irRoute.RequestAuthentication.JWT.Providers) > 0 {
+		return true
+	}
+
+	return false
+}
+
+func uniqueJwtAuthnProviders(listener *ir.HTTPListener) []v1alpha1.JwtAuthenticationFilterProvider {
+	var providers []v1alpha1.JwtAuthenticationFilterProvider
+
+	if listener == nil ||
+		len(listener.Routes) == 0 {
+		return providers
+	}
+
+	// Ignore the provider name when comparing providers.
+	opts := cmpopts.IgnoreFields(v1alpha1.JwtAuthenticationFilterProvider{}, "Name")
+
+	for _, route := range listener.Routes {
+		if route == nil ||
+			route.RequestAuthentication == nil ||
+			route.RequestAuthentication.JWT == nil {
+			return providers
+		}
+		for _, provider := range route.RequestAuthentication.JWT.Providers {
+			// Skip this provider if it's been created from another route.
+			if providers == nil {
+				providers = append(providers, provider)
+			} else {
+				found := false
+				for _, p := range providers {
+					if cmp.Equal(p, provider, opts) {
+						found = true
+						break
+					}
+				}
+				if !found {
+					providers = append(providers, provider)
+				}
+			}
+		}
+	}
+	return providers
 }

@@ -66,9 +66,6 @@ func buildXdsRoute(httpRoute *ir.HTTPRoute) *routev3.Route {
 
 	// TODO: Convert this into a generic interface for API Gateway features.
 	//       https://github.com/envoyproxy/gateway/issues/882
-	if err := patchRouteWithFilterConfig(router, httpRoute); err != nil {
-		return nil
-	}
 	if err := patchRouteWithRateLimit(router.GetRoute(), httpRoute); err != nil {
 		return nil
 	}

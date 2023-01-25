@@ -121,6 +121,10 @@ func addXdsHTTPFilterChain(xdsListener *listener.Listener, irListener *ir.HTTPLi
 
 	// TODO: Make this a generic interface for all API Gateway features.
 	//       https://github.com/envoyproxy/gateway/issues/882
+	if err := patchHCMWithJwtAuthnFilter(mgr, irListener); err != nil {
+		return err
+	}
+
 	if err := patchHCMWithRateLimit(mgr, irListener); err != nil {
 		return err
 	}

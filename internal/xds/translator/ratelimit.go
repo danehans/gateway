@@ -43,8 +43,16 @@ func patchHCMWithRateLimit(mgr *hcm.HttpConnectionManager, irListener *ir.HTTPLi
 	}
 
 	rateLimitFilter := buildRateLimitFilter(irListener)
-	// Make sure the router filter is the terminal filter in the chain
-	mgr.HttpFilters = append([]*hcm.HttpFilter{rateLimitFilter}, mgr.HttpFilters...)
+	// Make sure the jwt authn filter is the first filter and the terminal filter is the last in the chain.
+	var filters []*hcm.HttpFilter
+	for _, filter := range mgr.HttpFilters {
+		if filter.Name == jwtAuthenFilter {
+			filters = append(filters, filter)
+		}
+	}
+	filters = append(filters, rateLimitFilter)
+
+	mgr.HttpFilters = append(filters, mgr.HttpFilters...)
 	return nil
 }
 

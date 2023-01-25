@@ -135,7 +135,7 @@ func processHTTPListenerXdsTranslation(tCtx *types.ResourceVersionTable, httpLis
 		}
 
 		for _, route := range httpListener.Routes {
-			if isJwtAuthnPresent(route) {
+			if routeContainsJwtAuthn(route) {
 				for i := range route.RequestAuthentication.JWT.Providers {
 					provider := route.RequestAuthentication.JWT.Providers[i]
 					jwks, err := newJwksCluster(&provider)

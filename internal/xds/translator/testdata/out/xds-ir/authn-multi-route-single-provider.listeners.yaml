@@ -22,6 +22,26 @@
             '@type': type.googleapis.com/envoy.extensions.access_loggers.file.v3.FileAccessLog
             path: /dev/stdout
         httpFilters:
+        - name: envoy.filters.http.jwt_authn
+          typedConfig:
+            '@type': type.googleapis.com/envoy.extensions.filters.http.jwt_authn.v3.JwtAuthentication
+            providers:
+              example:
+                audiences:
+                - foo.com
+                issuer: https://www.example.com
+                payloadInMetadata: https://www.example.com
+                remoteJwks:
+                  cacheDuration: 300s
+                  httpUri:
+                    cluster: "127_0_0_1_80"
+                    timeout: 5s
+                    uri: http://127.0.0.1/jwt/public-key/jwks.json
+            rules:
+            - match:
+                prefix: /
+              requires:
+                providerName: example
         - name: envoy.filters.http.router
           typedConfig:
             '@type': type.googleapis.com/envoy.extensions.filters.http.router.v3.Router

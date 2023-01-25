@@ -241,8 +241,23 @@ type RequestAuthentication struct {
 //
 // +k8s:deepcopy-gen=true
 type JwtRequestAuthentication struct {
+	// Matches is a list of criteria for matching an HTTP request. The "providers" field
+	// only applies when the match is satisfied.
+	Matches []HTTPRequestMatch
 	// Providers defines a list of JSON Web Token (JWT) authentication providers.
 	Providers []egv1a1.JwtAuthenticationFilterProvider
+}
+
+// HTTPRequestMatch defines the schema for matching an HTTP request.
+//
+// +k8s:deepcopy-gen=true
+type HTTPRequestMatch struct {
+	// PathMatch defines a match condition based on path.
+	PathMatch *StringMatch
+	// HeaderMatches is a list of matching conditions based on request headers.
+	HeaderMatches []StringMatch
+	// QueryParamMatches is a list of matching conditions based on query parameters.
+	QueryParamMatches []StringMatch
 }
 
 // Validate the fields within the HTTPRoute structure
