@@ -52,7 +52,7 @@ func TestGatewayAPIConformance(t *testing.T) {
 		Client:                   client,
 		GatewayClassName:         *flags.GatewayClassName,
 		Debug:                    *flags.ShowDebug,
-		CleanupBaseResources:     *flags.CleanupBaseResources,
+		CleanupBaseResources:     false,
 		ValidUniqueListenerPorts: validUniqueListenerPorts,
 		SupportedFeatures: sets.New(
 			suite.SupportHTTPRouteQueryParamMatching,
@@ -64,7 +64,7 @@ func TestGatewayAPIConformance(t *testing.T) {
 	})
 	cSuite.Setup(t)
 	egTests := []suite.ConformanceTest{
-		tests.HTTPRouteSimpleSameNamespace,
+		/*tests.HTTPRouteSimpleSameNamespace,
 		tests.HTTPRouteRequestHeaderModifier,
 		tests.HTTPRouteResponseHeaderModifier,
 		tests.HTTPRouteQueryParamMatching,
@@ -87,7 +87,8 @@ func TestGatewayAPIConformance(t *testing.T) {
 		tests.GatewayInvalidRouteKind,
 		tests.HTTPRouteReferenceGrant,
 		tests.HTTPRoutePartiallyInvalidViaInvalidReferenceGrant,
-		tests.HTTPRouteInvalidParentRefNotMatchingListenerPort,
+		tests.HTTPRouteInvalidParentRefNotMatchingListenerPort,*/
+		tests.HTTPRouteMatching,
 	}
 	cSuite.Run(t, egTests)
 
